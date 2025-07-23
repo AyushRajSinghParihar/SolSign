@@ -1,16 +1,30 @@
-import { AuthButton } from './components/AuthButton'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { MainLayout } from './components/layouts/MainLayout'
+import { HomePage } from './pages/HomePage'
+import { VaultPage } from './pages/VaultPage'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { LoginPage } from './pages/LoginPage'
 
 function App() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-background text-foreground">
-      <div className="container mx-auto flex flex-col items-center justify-center gap-4 p-4">
-        <h1 className="text-4xl font-bold">SolSignAI</h1>
-        <p className="text-muted-foreground">Your AI-Powered Web3 Document Partner</p>
-        <div className="mt-4">
-          <AuthButton />
-        </div>
-      </div>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
+          {/* These are the protected child routes */}
+          <Route index element={<HomePage />} />
+          <Route path="vault" element={<VaultPage />} />
+          {/* Other protected routes like /dashboard will go here */}
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 
