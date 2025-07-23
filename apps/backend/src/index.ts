@@ -1,21 +1,31 @@
 import Fastify from 'fastify'
+import cors from '@fastify/cors'
+import { fastifyTRPCPlugin } from '@trpc/server/adapters/fastify'
+import { appRouter } from './router'
+import { createContext } from './router/context'
 
-const fastify = Fastify({
-  logger: true
+const server = Fastify({
+  logger: true,
 })
 
-// Declare a route
-fastify.get('/healthcheck', function (request, reply) {
-  reply.send({ status: 'ok' })
+server.register(cors, {
+  origin: '*', // In production, lock this down to your Vercel URL
 })
 
-const PORT = parseInt((process.env.PORT || '3001'), 10);
+server.register(fastifyTRPCPlugin, {
+  prefix: '/trpc',
+  trpcOptions: { router: appRouter, createContext },
+})
 
-// Run the server!
-fastify.listen({ port: PORT }, function (err, address) {
-  if (err) {
-    fastify.log.error(err)
+const PORT = parseInt(process.env.PORT || '3001', 10)
+
+const start = async () => {
+  try {
+    await server.listen({ port: PORT, host: '0.0.0.0' })
+  } catch (err) {
+    server.log.error(err)
     process.exit(1)
   }
-  // Server is now listening on ${address}
-})
+}
+
+start()
