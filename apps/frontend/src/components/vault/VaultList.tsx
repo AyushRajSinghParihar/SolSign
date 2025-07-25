@@ -1,5 +1,5 @@
 import type { UseQueryResult } from '@tanstack/react-query'
-import type { AppRouter } from '../../../../backend/src/router'
+import type { AppRouter } from '@repo/api'
 import type { inferRouterOutputs } from '@trpc/server'
 import { useEffect, useState } from 'react'
 import { decryptData } from '@/lib/crypto'
