@@ -4,8 +4,11 @@ import { supabase } from '@/lib/supabase'
 import 'react-pdf/dist/Page/AnnotationLayer.css'
 import 'react-pdf/dist/Page/TextLayer.css'
 
-// Point to the worker provided by react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+// --- THIS IS THE FIX ---
+// Tell pdfjs to load its worker from our own public directory.
+// Vite will serve any file in `/public` at the root of the domain.
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
+// --- END OF FIX ---
 
 type DocumentViewerProps = {
   storagePath: string
