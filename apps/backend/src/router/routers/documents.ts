@@ -77,7 +77,6 @@ export const documentsRouter = t.router({
     .input(
       z.object({
         templateFields: z.array(z.object({ label: z.string(), placeholder: z.string() })),
-        // z.record now requires a key type (z.string()) and a value type (z.any()).
         vaultData: z.record(z.string(), z.any()),
       }),
     )
@@ -85,25 +84,11 @@ export const documentsRouter = t.router({
       const { templateFields, vaultData } = input
 
       const prompt = `
-        You are an intelligent document autofill assistant.
-        Your task is to map the user's personal data to the required fields of a document template.
-        
-        DOCUMENT TEMPLATE FIELDS:
-        ${JSON.stringify(templateFields, null, 2)}
-
-        USER'S PERSONAL DATA VAULT:
-        ${JSON.stringify(vaultData, null, 2)}
-
-        Based on the user's data, fill in the values for the template fields.
-        Use your best judgment to match fields like "Full Name" to "fullName" or "Home Address" to "address".
-        If a value for a field cannot be found in the user's data, use an empty string "" as the value.
-
-        Respond ONLY with a JSON object that is a direct key-value map of the field labels to their corresponding values.
-        Example format:
-        {
-          "Disclosing Party Name": "John Doe",
-          "Effective Date": ""
-        }
+        You are an intelligent document autofill assistant. Your task is to map the user's personal data to the required fields of a document template.
+        DOCUMENT TEMPLATE FIELDS: ${JSON.stringify(templateFields, null, 2)}
+        USER'S PERSONAL DATA VAULT: ${JSON.stringify(vaultData, null, 2)}
+        Based on the user's data, fill in the values for the template fields. Use your best judgment to match fields. If a value cannot be found, use an empty string "".
+        Respond ONLY with a JSON object that is a direct key-value map of the field labels to their corresponding values. Example: { "Disclosing Party Name": "John Doe", "Effective Date": "" }
       `
       try {
         const result = await model.generateContent(prompt)
@@ -122,7 +107,6 @@ export const documentsRouter = t.router({
   checkForConflicts: protectedProcedure
     .input(
       z.object({
-        // z.record now requires a key type (z.string()) and a value type (z.string()).
         filledFields: z.record(z.string(), z.string()),
       }),
     )
@@ -130,24 +114,12 @@ export const documentsRouter = t.router({
       const { filledFields } = input
       
       const prompt = `
-        You are a smart legal assistant that checks for logical errors in contract data.
-        Analyze the following key-value data from a document for any logical inconsistencies, conflicts, or ambiguities.
-        For example, check if a start date is after an end date, if a name is repeated for different roles, or if a number seems out of place.
-
-        DOCUMENT DATA:
-        ${JSON.stringify(filledFields, null, 2)}
-
+        You are a smart legal assistant. Analyze the following contract data for logical inconsistencies.
+        DOCUMENT DATA: ${JSON.stringify(filledFields, null, 2)}
         Respond ONLY with a JSON array of issues found. Each issue should be an object with "field" and "issue" keys.
         If no issues are found, you MUST return an empty array [].
-
-        Example of a response with issues:
-        [
-          { "field": "End Date", "issue": "The end date occurs before the start date." },
-          { "field": "Disclosing Party", "issue": "This name is the same as the Receiving Party, which might be an error." }
-        ]
-
-        Example of a response with no issues:
-        []
+        Example with issues: [ { "field": "End Date", "issue": "The end date occurs before the start date." } ]
+        Example with no issues: []
       `
       try {
         const result = await model.generateContent(prompt)
@@ -158,5 +130,94 @@ export const documentsRouter = t.router({
         console.error('Error during AI conflict check:', error)
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'AI conflict check failed.' })
       }
-    })
+    }),
+
+  /**
+   * Saves the current filled data of a document.
+   */
+  save: protectedProcedure
+    .input(
+      z.object({
+        documentId: z.string().uuid(),
+        filledData: z.record(z.string(), z.string()),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { user } = ctx
+      const { documentId, filledData } = input
+
+      const { data, error } = await supabaseAdmin
+        .from('documents')
+        .update({ 
+          filled_data_json: filledData,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', documentId)
+        .eq('owner_id', user.sub)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error saving document:', error)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Could not save document draft.',
+        })
+      }
+      return data
+    }),
+
+  /**
+   * Records a signature for a document and updates its status.
+   */
+  sign: protectedProcedure
+    .input(
+      z.object({
+        documentId: z.string().uuid(),
+        documentHash: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { user } = ctx
+      const { documentId, documentHash } = input
+
+      // Step 1: Insert the signature record
+      const { error: signatureError } = await supabaseAdmin
+        .from('signatures')
+        .insert({
+          document_id: documentId,
+          signer_id: user.sub,
+          signature_hash: documentHash,
+        })
+
+      if (signatureError) {
+        console.error('Error creating signature record:', signatureError)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Could not record signature.',
+        })
+      }
+      
+      // Step 2: Update the document status to "signed"
+      const { data: updatedDocument, error: updateError } = await supabaseAdmin
+        .from('documents')
+        .update({ 
+          status: 'signed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', documentId)
+        .eq('owner_id', user.sub)
+        .select()
+        .single()
+      
+      if (updateError) {
+        console.error('Error updating document status after signing:', updateError)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Could not update document status.',
+        })
+      }
+
+      return updatedDocument
+    }),
 })
