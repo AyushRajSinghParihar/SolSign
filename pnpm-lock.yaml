@@ -209,7 +209,11 @@ importers:
         specifier: ^7.0.4
         version: 7.0.5(@types/node@22.15.3)(jiti@2.4.2)(lightningcss@1.30.1)(terser@5.43.1)
 
-  packages/api: {}
+  packages/api:
+    devDependencies:
+      '@trpc/server':
+        specifier: ^11.4.3
+        version: 11.4.3(typescript@5.8.3)
 
   packages/eslint-config:
     devDependencies:

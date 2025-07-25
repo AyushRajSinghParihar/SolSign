@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { useEncryptionKey, decryptData } from '@/lib/crypto'
 import { trpc } from '@/lib/trpc'
-import { inferRouterOutputs } from '@trpc/server'
-import type { AppRouter } from '@repo/api'
+// --- THIS IS THE FIX ---
+import type { RouterOutputs } from '@repo/api'
+// --- END OF FIX ---
 import { Input } from '../ui/input'
 import { Label } from '../ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
@@ -11,8 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { useDebounce } from '@/hooks/useDebounce'
 
-type RouterOutput = inferRouterOutputs<AppRouter>
-type DocumentWithTemplate = RouterOutput['documents']['getById']
+// Use the new, clean type from our shared package
+type DocumentWithTemplate = RouterOutputs['documents']['getById']
 type Template = DocumentWithTemplate['template']
 
 type DocumentFormProps = {
