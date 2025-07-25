@@ -5,11 +5,23 @@ import { trpc } from '../lib/trpc'
 import { useAuth } from '../hooks/useAuth'
 import bs58 from 'bs58'
 import { Button } from './ui/button'
+import { useNavigate } from 'react-router-dom'
+import { jwtDecode } from 'jwt-decode' // <-- IMPORT THIS
+
+// Define the shape of the decoded JWT payload
+type DecodedToken = {
+  sub: string; // This is the user's UUID
+  app_metadata: {
+    wallet_address: string;
+  };
+  // ... other JWT fields like exp, aud, etc.
+}
 
 export const AuthButton = () => {
   const { connected, publicKey, signMessage, disconnect } = useWallet()
-  const { token, setToken, logout: authLogout } = useAuth()
+  const { user, setAuth, logout: authLogout } = useAuth() // <-- Use `user` and `setAuth`
   const [isSigning, setIsSigning] = useState(false)
+  const navigate = useNavigate()
 
   const getNonce = trpc.auth.getNonce.useMutation()
   const verifySignature = trpc.auth.verify.useMutation()
@@ -19,57 +31,56 @@ export const AuthButton = () => {
 
     setIsSigning(true)
     try {
-      // 1. Get nonce from backend
       const { nonce } = await getNonce.mutateAsync({
         walletAddress: publicKey.toBase58(),
       })
-
-      // 2. Prompt user to sign the nonce
       const signature = await signMessage(new TextEncoder().encode(nonce))
-
-      // 3. Verify signature and get JWT from backend
       const { token } = await verifySignature.mutateAsync({
         publicKey: publicKey.toBase58(),
         signature: bs58.encode(signature),
         nonce,
       })
-      
-      // 4. Set the token in our global auth store
-      setToken(token)
+
+      // Decode the JWT to get user info
+      const decoded = jwtDecode<DecodedToken>(token)
+      const userToStore = {
+        id: decoded.sub,
+        wallet_address: decoded.app_metadata.wallet_address,
+      }
+
+      // Use the new setAuth function
+      setAuth(token, userToStore)
+      navigate('/')
     } catch (error) {
       console.error('Sign-in failed', error)
-      // Optionally show an error toast to the user
     } finally {
       setIsSigning(false)
     }
   }
 
   const handleLogout = () => {
-    authLogout();
-    disconnect();
+    authLogout()
+    disconnect()
   }
 
   useEffect(() => {
-    // Automatically trigger sign-in when wallet connects, if not already authenticated
-    if (connected && !token && !isSigning && !verifySignature.isSuccess) {
+    // We check for `user` now instead of `token` as the source of truth
+    if (connected && !user && !isSigning && !verifySignature.isSuccess) {
       handleSign()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, token])
+  }, [connected, user]) // <-- Dependency array updated
 
-  // Case 1: Wallet is not connected
   if (!connected) {
     return <WalletMultiButton />
   }
 
-  // Case 2: Wallet is connected, and we have a valid JWT
-  if (token) {
+  if (user) { // <-- Check for user object
     return (
       <div className="flex items-center gap-4">
         <p className="text-sm text-muted-foreground">
           Welcome,{' '}
           <span className="font-mono text-foreground">
-            {`${publicKey?.toBase58().slice(0, 4)}...${publicKey?.toBase58().slice(-4)}`}
+            {`${user.wallet_address.slice(0, 4)}...${user.wallet_address.slice(-4)}`}
           </span>
         </p>
         <Button variant="outline" onClick={handleLogout}>
@@ -79,7 +90,6 @@ export const AuthButton = () => {
     )
   }
 
-  // Case 3: Wallet is connected, but we are waiting for signature/verification
   return (
     <Button onClick={handleSign} disabled={isSigning}>
       {isSigning ? 'Verifying in wallet...' : 'Verify Wallet to Sign In'}
