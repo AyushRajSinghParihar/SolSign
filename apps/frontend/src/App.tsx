@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute'
 import { LoginPage } from './pages/LoginPage'
 import { NewDocumentPage } from './pages/NewDocumentPage' 
 import { Toaster } from './components/ui/sonner' 
+import { DocumentPage } from './pages/DocumentPage'
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
             <Route index element={<HomePage />} />
             <Route path="vault" element={<VaultPage />} />
             <Route path="documents/new" element={<NewDocumentPage />} />
+            <Route path="documents/:id" element={<DocumentPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

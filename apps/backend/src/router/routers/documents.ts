@@ -7,7 +7,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 // --- AI CONFIGURATION ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 if (!GEMINI_API_KEY) {
-  // This check is now in the main backend, not just the Edge Function
   throw new Error('Missing environment variable GEMINI_API_KEY for backend')
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
@@ -78,7 +77,8 @@ export const documentsRouter = t.router({
     .input(
       z.object({
         templateFields: z.array(z.object({ label: z.string(), placeholder: z.string() })),
-        vaultData: z.record(z.any()), // Decrypted vault data from the client
+        // z.record now requires a key type (z.string()) and a value type (z.any()).
+        vaultData: z.record(z.string(), z.any()),
       }),
     )
     .mutation(async ({ input }) => {
@@ -122,7 +122,8 @@ export const documentsRouter = t.router({
   checkForConflicts: protectedProcedure
     .input(
       z.object({
-        filledFields: z.record(z.string()), // The current state of the form
+        // z.record now requires a key type (z.string()) and a value type (z.string()).
+        filledFields: z.record(z.string(), z.string()),
       }),
     )
     .mutation(async ({ input }) => {
