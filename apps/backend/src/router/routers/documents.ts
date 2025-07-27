@@ -84,12 +84,31 @@ export const documentsRouter = t.router({
       const { templateFields, vaultData } = input
 
       const prompt = `
-        You are an intelligent document autofill assistant. Your task is to map the user's personal data to the required fields of a document template.
-        DOCUMENT TEMPLATE FIELDS: ${JSON.stringify(templateFields, null, 2)}
-        USER'S PERSONAL DATA VAULT: ${JSON.stringify(vaultData, null, 2)}
-        Based on the user's data, fill in the values for the template fields. Use your best judgment to match fields. If a value cannot be found, use an empty string "".
-        Respond ONLY with a JSON object that is a direct key-value map of the field labels to their corresponding values. Example: { "Disclosing Party Name": "John Doe", "Effective Date": "" }
+        You are a highly accurate data mapping assistant for legal documents.
+        Your task is to map a user's JSON data vault to a list of required document fields.
+
+        **Instructions:**
+        1.  Analyze the DOCUMENT TEMPLATE FIELDS provided below.
+        2.  Analyze the USER'S PERSONAL DATA VAULT JSON.
+        3.  For each field in the template, find the most logical corresponding value from the user's data.
+        4.  Semantic matching is key (e.g., "Full Name" in the template should match "fullName" or "name" in the data).
+        5.  If a corresponding value cannot be found for a field, YOU MUST use an empty string "" as its value.
+        6.  Your response MUST BE ONLY a single, valid JSON object. Do not include any text, explanations, or markdown formatting like \`\`\`json.
+
+        **DOCUMENT TEMPLATE FIELDS:**
+        ${JSON.stringify(templateFields, null, 2)}
+
+        **USER'S PERSONAL DATA VAULT:**
+        ${JSON.stringify(vaultData, null, 2)}
+
+        **Required Output Format (JSON Object):**
+        {
+          "Template Field Label 1": "Corresponding Vault Value",
+          "Template Field Label 2": "Corresponding Vault Value",
+          "A Field with No Match": ""
+        }
       `
+
       try {
         const result = await model.generateContent(prompt)
         const responseText = result.response.text()
@@ -114,12 +133,23 @@ export const documentsRouter = t.router({
       const { filledFields } = input
       
       const prompt = `
-        You are a smart legal assistant. Analyze the following contract data for logical inconsistencies.
-        DOCUMENT DATA: ${JSON.stringify(filledFields, null, 2)}
-        Respond ONLY with a JSON array of issues found. Each issue should be an object with "field" and "issue" keys.
-        If no issues are found, you MUST return an empty array [].
-        Example with issues: [ { "field": "End Date", "issue": "The end date occurs before the start date." } ]
-        Example with no issues: []
+        You are a meticulous legal compliance checker. Your task is to find logical inconsistencies in document data.
+
+        **Instructions:**
+        1.  Analyze the key-value DOCUMENT DATA provided below.
+        2.  Identify any logical conflicts, such as dates being out of order, names being inconsistent, or values that seem illogical in a legal context.
+        3.  Your response MUST BE ONLY a single, valid JSON array of issue objects.
+        4.  Each issue object must have a "field" key (the name of the field with the issue) and an "issue" key (a brief, clear description of the problem).
+        5.  If there are absolutely no issues, you MUST return an empty array [].
+        6.  Do not include any text, explanations, or markdown formatting like \`\`\`json.
+
+        **DOCUMENT DATA:**
+        ${JSON.stringify(filledFields, null, 2)}
+
+        **Required Output Format (JSON Array):**
+        [
+          { "field": "FieldName", "issue": "Description of the conflict." }
+        ]
       `
       try {
         const result = await model.generateContent(prompt)
