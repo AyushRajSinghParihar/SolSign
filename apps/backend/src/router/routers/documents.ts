@@ -266,4 +266,22 @@ export const documentsRouter = t.router({
 
       return updatedDocument;
     }),
+      getAll: protectedProcedure
+    .query(async ({ ctx }) => {
+      const { user } = ctx
+      const { data, error } = await supabaseAdmin
+        .from('documents')
+        .select('*')
+        .eq('owner_id', user.sub)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching user documents:', error)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Could not fetch documents.',
+        })
+      }
+      return data
+    }),
 });
