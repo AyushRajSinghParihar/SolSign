@@ -1,0 +1,61 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`documentsRouter > autofill > should construct a correct prompt and return parsed JSON 1`] = `
+"
+        You are a highly accurate data mapping assistant for legal documents.
+        Your task is to map a user's JSON data vault to a list of required document fields.
+
+        **Instructions:**
+        1.  Analyze the DOCUMENT TEMPLATE FIELDS provided below.
+        2.  Analyze the USER'S PERSONAL DATA VAULT JSON.
+        3.  For each field in the template, find the most logical corresponding value from the user's data.
+        4.  Semantic matching is key (e.g., "Full Name" in the template should match "fullName" or "name" in the data).
+        5.  If a corresponding value cannot be found for a field, YOU MUST use an empty string "" as its value.
+        6.  Your response MUST BE ONLY a single, valid JSON object. Do not include any text, explanations, or markdown formatting like \`\`\`json.
+
+        **DOCUMENT TEMPLATE FIELDS:**
+        [
+  {
+    "label": "Full Name",
+    "placeholder": "[Name]"
+  }
+]
+
+        **USER'S PERSONAL DATA VAULT:**
+        {
+  "fullName": "John Doe"
+}
+
+        **Required Output Format (JSON Object):**
+        {
+          "Template Field Label 1": "Corresponding Vault Value",
+          "Template Field Label 2": "Corresponding Vault Value",
+          "A Field with No Match": ""
+        }
+      "
+`;
+
+exports[`documentsRouter > checkForConflicts > should construct a conflict check prompt and return an array of issues 1`] = `
+"
+        You are a meticulous legal compliance checker. Your task is to find logical inconsistencies in document data.
+
+        **Instructions:**
+        1.  Analyze the key-value DOCUMENT DATA provided below.
+        2.  Identify any logical conflicts, such as dates being out of order, names being inconsistent, or values that seem illogical in a legal context.
+        3.  Your response MUST BE ONLY a single, valid JSON array of issue objects.
+        4.  Each issue object must have a "field" key (the name of the field with the issue) and an "issue" key (a brief, clear description of the problem).
+        5.  If there are absolutely no issues, you MUST return an empty array [].
+        6.  Do not include any text, explanations, or markdown formatting like \`\`\`json.
+
+        **DOCUMENT DATA:**
+        {
+  "Start Date": "2025-01-01",
+  "End Date": "2024-01-01"
+}
+
+        **Required Output Format (JSON Array):**
+        [
+          { "field": "FieldName", "issue": "Description of the conflict." }
+        ]
+      "
+`;

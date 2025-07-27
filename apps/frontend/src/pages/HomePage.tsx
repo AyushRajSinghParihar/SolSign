@@ -1,4 +1,4 @@
-import { TemplateList } from '@/components/template/TemplateList'
+import { TemplateList } from "@/components/template/TemplateList";
 
 export function HomePage() {
   return (
@@ -11,5 +11,5 @@ export function HomePage() {
       </div>
       <TemplateList />
     </div>
-  )
+  );
 }

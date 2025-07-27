@@ -1,18 +1,18 @@
-import { FileUpload } from '@/components/document/FileUpload'
-import { trpc } from '@/lib/trpc'
-import { useNavigate } from 'react-router-dom'
+import { FileUpload } from "@/components/document/FileUpload";
+import { trpc } from "@/lib/trpc";
+import { useNavigate } from "react-router-dom";
 
 export function NewDocumentPage() {
-  const navigate = useNavigate()
-  const utils = trpc.useUtils()
+  const navigate = useNavigate();
+  const utils = trpc.useUtils();
 
   const handleUploadSuccess = () => {
     // After a successful upload, invalidate the templates query
     // so the list on the dashboard will be updated.
-    utils.templates.getTemplates.invalidate()
+    utils.templates.getTemplates.invalidate();
     // Navigate the user back to the dashboard to see the result.
-    navigate('/')
-  }
+    navigate("/");
+  };
 
   return (
     <div className="space-y-8">
@@ -25,5 +25,5 @@ export function NewDocumentPage() {
       </div>
       <FileUpload onUploadSuccess={handleUploadSuccess} />
     </div>
-  )
+  );
 }

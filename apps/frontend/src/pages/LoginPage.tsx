@@ -1,13 +1,13 @@
-import { Navigate } from 'react-router-dom'
-import { AuthButton } from '../components/AuthButton'
-import { useAuth } from '../hooks/useAuth'
+import { Navigate } from "react-router-dom";
+import { AuthButton } from "../components/AuthButton";
+import { useAuth } from "../hooks/useAuth";
 
 export function LoginPage() {
-  const { token } = useAuth()
+  const { token } = useAuth();
 
   // If user is already logged in, redirect them to the home page
   if (token) {
-    return <Navigate to="/" />
+    return <Navigate to="/" />;
   }
 
   return (
@@ -22,5 +22,5 @@ export function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,14 +1,14 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai'
-import { Buffer } from 'https://deno.land/std@0.177.0/node/buffer.ts'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GoogleGenerativeAI } from "https://esm.sh/@google/generative-ai";
+import { Buffer } from "https://deno.land/std@0.177.0/node/buffer.ts";
 
 // --- CONFIGURATION ---
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 if (!GEMINI_API_KEY) {
-  throw new Error('Missing environment variable GEMINI_API_KEY')
+  throw new Error("Missing environment variable GEMINI_API_KEY");
 }
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 const PROMPT = `
 You are an expert legal document analysis system. Your task is to analyze the provided PDF document and extract key information in a structured JSON format.
@@ -26,85 +26,104 @@ Respond ONLY with a JSON object in the following format. Do not include any othe
     { "type": "Confidentiality Obligation", "text": "The Receiving Party shall hold and maintain the Confidential Information in strictest confidence..." }
   ]
 }
-`
+`;
 
 // --- MAIN FUNCTION ---
 Deno.serve(async (req) => {
   try {
     const adminSupabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    )
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
 
-    const { record } = await req.json()
-    const filePath = record.name // The full path, e.g., "user-uuid/document.pdf"
+    const { record } = await req.json();
+    const filePath = record.name; // The full path, e.g., "user-uuid/document.pdf"
 
     // --- THIS IS THE DEFINITIVE FIX ---
-    const pathParts = filePath.split('/');
+    const pathParts = filePath.split("/");
     if (pathParts.length < 2) {
-      throw new Error(`Invalid file path format. Expected '<user_id>/<file_name>', but got '${filePath}'.`);
+      throw new Error(
+        `Invalid file path format. Expected '<user_id>/<file_name>', but got '${filePath}'.`,
+      );
     }
     const ownerId = pathParts[0]; // The first part of the path IS the user's UUID.
     // --- END OF FIX ---
-    
-    console.log(`Processing file: ${filePath} for owner: ${ownerId}`)
 
-    const { data: fileData, error: downloadError } = await adminSupabaseClient.storage
-      .from('documents')
-      .download(filePath)
+    console.log(`Processing file: ${filePath} for owner: ${ownerId}`);
 
-    if (downloadError) throw downloadError
-    const fileBuffer = Buffer.from(await fileData.arrayBuffer())
+    const { data: fileData, error: downloadError } =
+      await adminSupabaseClient.storage.from("documents").download(filePath);
 
-    const hashBuffer = await crypto.subtle.digest('SHA-256', fileBuffer)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const sha256_hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-    console.log(`Calculated hash: ${sha256_hash}`)
+    if (downloadError) throw downloadError;
+    const fileBuffer = Buffer.from(await fileData.arrayBuffer());
+
+    const hashBuffer = await crypto.subtle.digest("SHA-256", fileBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const sha256_hash = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    console.log(`Calculated hash: ${sha256_hash}`);
 
     const { data: existingTemplate } = await adminSupabaseClient
-      .from('templates')
-      .select('id')
-      .eq('sha256_hash', sha256_hash)
-      .single()
+      .from("templates")
+      .select("id")
+      .eq("sha256_hash", sha256_hash)
+      .single();
 
     if (existingTemplate) {
-      console.log(`Template with hash ${sha256_hash} already exists. Skipping.`)
-      await adminSupabaseClient.storage.from('documents').remove([filePath])
-      console.log(`Deleted duplicate file: ${filePath}`)
-      return new Response(JSON.stringify({ message: 'Duplicate document ignored.' }), {
-        headers: { 'Content-Type': 'application/json' }, status: 200,
-      })
+      console.log(
+        `Template with hash ${sha256_hash} already exists. Skipping.`,
+      );
+      await adminSupabaseClient.storage.from("documents").remove([filePath]);
+      console.log(`Deleted duplicate file: ${filePath}`);
+      return new Response(
+        JSON.stringify({ message: "Duplicate document ignored." }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        },
+      );
     }
 
-    console.log('New document. Analyzing with Gemini...')
+    console.log("New document. Analyzing with Gemini...");
     const result = await model.generateContent([
       PROMPT,
-      { inlineData: { data: fileBuffer.toString('base64'), mimeType: 'application/pdf' } },
-    ])
-    const aiResponseText = result.response.text()
-    const jsonString = aiResponseText.replace(/```json\n|```/g, '').trim()
-    const extracted_data_json = JSON.parse(jsonString)
-    console.log('AI analysis complete.')
+      {
+        inlineData: {
+          data: fileBuffer.toString("base64"),
+          mimeType: "application/pdf",
+        },
+      },
+    ]);
+    const aiResponseText = result.response.text();
+    const jsonString = aiResponseText.replace(/```json\n|```/g, "").trim();
+    const extracted_data_json = JSON.parse(jsonString);
+    console.log("AI analysis complete.");
 
     const { error: insertError } = await adminSupabaseClient
-      .from('templates')
+      .from("templates")
       .insert({
         sha256_hash,
         owner_id: ownerId, // Use the reliably parsed ownerId
         extracted_data_json,
         storage_path: filePath,
-      })
+      });
 
-    if (insertError) throw insertError
-    console.log('New template saved to database.')
+    if (insertError) throw insertError;
+    console.log("New template saved to database.");
 
-    return new Response(JSON.stringify({ message: 'Template created successfully.' }), {
-      headers: { 'Content-Type': 'application/json' }, status: 200,
-    })
+    return new Response(
+      JSON.stringify({ message: "Template created successfully." }),
+      {
+        headers: { "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error) {
-    console.error('Error processing document:', error)
+    console.error("Error processing document:", error);
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { 'Content-Type': 'application/json' }, status: 500,
-    })
+      headers: { "Content-Type": "application/json" },
+      status: 500,
+    });
   }
-})
+});

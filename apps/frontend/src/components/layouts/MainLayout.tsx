@@ -1,6 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { AuthButton } from '../AuthButton'
-import { cn } from '@/lib/utils'
+import { NavLink, Outlet } from "react-router-dom";
+import { AuthButton } from "../AuthButton";
+import { cn } from "@/lib/utils";
 
 export function MainLayout() {
   return (
@@ -11,8 +11,8 @@ export function MainLayout() {
             to="/"
             className={({ isActive }) =>
               cn(
-                'transition-colors hover:text-foreground',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
+                "transition-colors hover:text-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground",
               )
             }
           >
@@ -22,8 +22,8 @@ export function MainLayout() {
             to="/vault"
             className={({ isActive }) =>
               cn(
-                'transition-colors hover:text-foreground',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
+                "transition-colors hover:text-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground",
               )
             }
           >
@@ -34,8 +34,8 @@ export function MainLayout() {
             to="/documents/new"
             className={({ isActive }) =>
               cn(
-                'transition-colors hover:text-foreground',
-                isActive ? 'text-foreground' : 'text-muted-foreground',
+                "transition-colors hover:text-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground",
               )
             }
           >
@@ -50,5 +50,5 @@ export function MainLayout() {
         <Outlet /> {/* Child routes will render here */}
       </main>
     </div>
-  )
+  );
 }

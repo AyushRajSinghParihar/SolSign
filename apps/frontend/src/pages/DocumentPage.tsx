@@ -1,30 +1,30 @@
-import { useParams } from 'react-router-dom'
-import { trpc } from '@/lib/trpc'
-import { DocumentViewer } from '@/components/document/DocumentViewer'
-import { DocumentForm } from '@/components/document/DocumentForm'
+import { useParams } from "react-router-dom";
+import { trpc } from "@/lib/trpc";
+import { DocumentViewer } from "@/components/document/DocumentViewer";
+import { DocumentForm } from "@/components/document/DocumentForm";
 
 export function DocumentPage() {
-  const { id } = useParams<{ id: string }>()
-  
+  const { id } = useParams<{ id: string }>();
+
   if (!id) {
-    return <div>Error: No document ID provided.</div>
+    return <div>Error: No document ID provided.</div>;
   }
 
-  const getDocumentQuery = trpc.documents.getById.useQuery({ id })
+  const getDocumentQuery = trpc.documents.getById.useQuery({ id });
 
   if (getDocumentQuery.isLoading) {
-    return <div>Loading document...</div>
+    return <div>Loading document...</div>;
   }
 
   if (getDocumentQuery.isError) {
-    return <div>Error: {getDocumentQuery.error.message}</div>
+    return <div>Error: {getDocumentQuery.error.message}</div>;
   }
 
-  const document = getDocumentQuery.data
-  const template = document.template
+  const document = getDocumentQuery.data;
+  const template = document.template;
 
   if (!template) {
-    return <div>Error: This document is not linked to a valid template.</div>
+    return <div>Error: This document is not linked to a valid template.</div>;
   }
 
   return (
@@ -40,5 +40,5 @@ export function DocumentPage() {
         <DocumentForm document={document} template={template} />
       </div>
     </div>
-  )
+  );
 }

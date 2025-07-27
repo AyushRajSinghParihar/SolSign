@@ -1,6 +1,6 @@
-import { initTRPC, TRPCError } from '@trpc/server'
-import { CreateFastifyContextOptions } from '@trpc/server/adapters/fastify'
-import jwt from 'jsonwebtoken'
+import { initTRPC, TRPCError } from "@trpc/server";
+import { CreateFastifyContextOptions } from "@trpc/server/adapters/fastify";
+import jwt from "jsonwebtoken";
 
 interface UserPayload {
   sub: string; // This will be the wallet address
@@ -15,35 +15,41 @@ interface UserPayload {
 export function createContext({ req, res }: CreateFastifyContextOptions) {
   function getUserFromHeader() {
     if (req.headers.authorization) {
-      const token = req.headers.authorization.split(' ')[1]
-      console.log('🔑 Backend received token:', token) // <-- LOG 3
+      const token = req.headers.authorization.split(" ")[1];
+      console.log("🔑 Backend received token:", token); // <-- LOG 3
 
       if (!token) {
-        console.log('❌ No token found after "Bearer ".')
+        console.log('❌ No token found after "Bearer ".');
         return null;
       }
-      
+
       try {
-        const decoded = jwt.verify(token, process.env.SUPABASE_JWT_SECRET!) as UserPayload;
-        console.log('✅ Backend successfully verified token for user:', decoded.sub) // <-- LOG 4
+        const decoded = jwt.verify(
+          token,
+          process.env.SUPABASE_JWT_SECRET!,
+        ) as UserPayload;
+        console.log(
+          "✅ Backend successfully verified token for user:",
+          decoded.sub,
+        ); // <-- LOG 4
         return decoded;
       } catch (error: any) {
-        console.error('❌ Backend JWT verification failed:', error.message) // <-- LOG 5
+        console.error("❌ Backend JWT verification failed:", error.message); // <-- LOG 5
         return null;
       }
     }
-    console.log('🤷 No authorization header found on request.') // <-- LOG 6
-    return null
+    console.log("🤷 No authorization header found on request."); // <-- LOG 6
+    return null;
   }
 
-  const user = getUserFromHeader()
+  const user = getUserFromHeader();
 
-  return { req, res, user }
+  return { req, res, user };
 }
 
-export type Context = Awaited<ReturnType<typeof createContext>>
+export type Context = Awaited<ReturnType<typeof createContext>>;
 
-export const t = initTRPC.context<Context>().create()
+export const t = initTRPC.context<Context>().create();
 
 /**
  * A middleware to protect routes.
@@ -51,7 +57,7 @@ export const t = initTRPC.context<Context>().create()
  */
 const isAuthed = t.middleware(({ next, ctx }) => {
   if (!ctx.user?.sub) {
-    throw new TRPCError({ code: 'UNAUTHORIZED' });
+    throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
   return next({

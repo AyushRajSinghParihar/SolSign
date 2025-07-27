@@ -1,10 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Supabase URL or Service Key is not defined in environment variables.')
+  throw new Error(
+    "Supabase URL or Service Key is not defined in environment variables.",
+  );
 }
 
 export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -12,4 +14,4 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     autoRefreshToken: false,
     persistSession: false,
   },
-})
+});

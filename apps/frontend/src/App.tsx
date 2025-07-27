@@ -1,12 +1,12 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import { MainLayout } from './components/layouts/MainLayout'
-import { HomePage } from './pages/HomePage'
-import { VaultPage } from './pages/VaultPage'
-import { ProtectedRoute } from './components/ProtectedRoute'
-import { LoginPage } from './pages/LoginPage'
-import { NewDocumentPage } from './pages/NewDocumentPage' 
-import { Toaster } from './components/ui/sonner' 
-import { DocumentPage } from './pages/DocumentPage'
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { MainLayout } from "./components/layouts/MainLayout";
+import { HomePage } from "./pages/HomePage";
+import { VaultPage } from "./pages/VaultPage";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { LoginPage } from "./pages/LoginPage";
+import { NewDocumentPage } from "./pages/NewDocumentPage";
+import { Toaster } from "./components/ui/sonner";
+import { DocumentPage } from "./pages/DocumentPage";
 
 function App() {
   return (
@@ -29,9 +29,9 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-      <Toaster /> 
+      <Toaster />
     </>
-  )
+  );
 }
 
-export default App
+export default App;

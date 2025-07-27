@@ -1,45 +1,45 @@
-import { useState, useEffect } from 'react'
-import { Document, Page, pdfjs } from 'react-pdf'
-import { supabase } from '@/lib/supabase'
-import 'react-pdf/dist/Page/AnnotationLayer.css'
-import 'react-pdf/dist/Page/TextLayer.css'
+import { useState, useEffect } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import { supabase } from "@/lib/supabase";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 
 // --- THIS IS THE FIX ---
 // Tell pdfjs to load its worker from our own public directory.
 // Vite will serve any file in `/public` at the root of the domain.
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 // --- END OF FIX ---
 
 type DocumentViewerProps = {
-  storagePath: string
-}
+  storagePath: string;
+};
 
 export function DocumentViewer({ storagePath }: DocumentViewerProps) {
-  const [fileUrl, setFileUrl] = useState<string | null>(null)
-  const [numPages, setNumPages] = useState<number>()
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [numPages, setNumPages] = useState<number>();
 
   useEffect(() => {
     const downloadFile = async () => {
       // Create a signed URL to access the private file in the bucket
       const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(storagePath, 60) // The URL is valid for 60 seconds
+        .from("documents")
+        .createSignedUrl(storagePath, 60); // The URL is valid for 60 seconds
 
       if (error) {
-        console.error('Error creating signed URL for PDF:', error)
-        return
+        console.error("Error creating signed URL for PDF:", error);
+        return;
       }
-      setFileUrl(data.signedUrl)
-    }
-    downloadFile()
-  }, [storagePath])
+      setFileUrl(data.signedUrl);
+    };
+    downloadFile();
+  }, [storagePath]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }): void {
-    setNumPages(numPages)
+    setNumPages(numPages);
   }
 
   if (!fileUrl) {
-    return <div>Loading document preview...</div>
+    return <div>Loading document preview...</div>;
   }
 
   return (
@@ -50,5 +50,5 @@ export function DocumentViewer({ storagePath }: DocumentViewerProps) {
         ))}
       </Document>
     </div>
-  )
+  );
 }

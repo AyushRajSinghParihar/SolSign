@@ -1,4 +1,4 @@
-import { trpc } from '@/lib/trpc'
+import { trpc } from "@/lib/trpc";
 import {
   Table,
   TableBody,
@@ -6,10 +6,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { Button } from '../ui/button'
-import { useState } from 'react'
+} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +17,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog'
-import { Input } from '../ui/input'
-import { Label } from '../ui/label'
-import { useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
+} from "@/components/ui/dialog";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 /**
  * A dialog component for creating a new document from a template.
@@ -32,28 +32,28 @@ function CreateDocumentDialog({
   isOpen,
   onOpenChange,
 }: {
-  templateId: string
-  isOpen: boolean
-  onOpenChange: (isOpen: boolean) => void
+  templateId: string;
+  isOpen: boolean;
+  onOpenChange: (isOpen: boolean) => void;
 }) {
-  const [name, setName] = useState('')
-  const navigate = useNavigate()
-  const createDocumentMutation = trpc.documents.create.useMutation()
+  const [name, setName] = useState("");
+  const navigate = useNavigate();
+  const createDocumentMutation = trpc.documents.create.useMutation();
 
   const handleSubmit = async () => {
     // Wrap the mutation in a promise to use with sonner
-    const promise = createDocumentMutation.mutateAsync({ templateId, name })
+    const promise = createDocumentMutation.mutateAsync({ templateId, name });
 
     toast.promise(promise, {
-      loading: 'Creating document...',
+      loading: "Creating document...",
       success: (newDocument) => {
-        onOpenChange(false) // Close the dialog on success
-        navigate(`/documents/${newDocument.id}`) // Navigate to the new document page
-        return 'Document created successfully!'
+        onOpenChange(false); // Close the dialog on success
+        navigate(`/documents/${newDocument.id}`); // Navigate to the new document page
+        return "Document created successfully!";
       },
       error: (err) => `Failed to create document: ${err.message}`,
-    })
-  }
+    });
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -84,12 +84,12 @@ function CreateDocumentDialog({
             onClick={handleSubmit}
             disabled={!name.trim() || createDocumentMutation.isPending}
           >
-            {createDocumentMutation.isPending ? 'Creating...' : 'Create'}
+            {createDocumentMutation.isPending ? "Creating..." : "Create"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
 
 /**
@@ -97,20 +97,22 @@ function CreateDocumentDialog({
  * to create new document instances from them.
  */
 export function TemplateList() {
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null,
+  );
 
   const getTemplatesQuery = trpc.templates.getTemplates.useQuery(undefined, {
     // Refetch every 10 seconds to catch new templates from the async backend
     refetchInterval: 10000,
-  })
+  });
 
   const handleUseTemplate = (templateId: string) => {
-    setSelectedTemplateId(templateId)
-    setDialogOpen(true)
-  }
+    setSelectedTemplateId(templateId);
+    setDialogOpen(true);
+  };
 
-  const templates = getTemplatesQuery.data || []
+  const templates = getTemplatesQuery.data || [];
 
   return (
     <>
@@ -132,7 +134,7 @@ export function TemplateList() {
             onClick={() => getTemplatesQuery.refetch()}
             disabled={getTemplatesQuery.isFetching}
           >
-            {getTemplatesQuery.isFetching ? 'Refreshing...' : 'Refresh'}
+            {getTemplatesQuery.isFetching ? "Refreshing..." : "Refresh"}
           </Button>
         </CardHeader>
         <CardContent>
@@ -168,7 +170,7 @@ export function TemplateList() {
                     <TableCell className="font-mono text-xs">
                       {template.owner?.wallet_address
                         ? `${template.owner.wallet_address.slice(0, 6)}...`
-                        : 'N/A'}
+                        : "N/A"}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -192,5 +194,5 @@ export function TemplateList() {
         </CardContent>
       </Card>
     </>
-  )
+  );
 }
