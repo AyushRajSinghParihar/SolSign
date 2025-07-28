@@ -1,0 +1,3 @@
+[submodule "solana/solsign_program"]
+	path = solana/solsign_program
+	url = https://github.com/AyushRajSinghParihar/solsign_rust.git
