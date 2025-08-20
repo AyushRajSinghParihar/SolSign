@@ -5,11 +5,13 @@
     "target": "ES2022",
     "sourceMap": true,
     "outDir": "dist",
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*.ts", "src/types/**/*", "src/types/global.d.ts"],
   "exclude": ["node_modules"]
 }

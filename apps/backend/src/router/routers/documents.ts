@@ -1,8 +1,14 @@
-import { z } from "zod";
-import { protectedProcedure, t } from "../context";
-import { supabaseAdmin } from "../../lib/supabase";
-import { TRPCError } from "@trpc/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+/// <reference path="../../types/tiny-sha256.d.ts" />
+import { z } from 'zod'
+import { protectedProcedure, t } from '../context'
+import { supabaseAdmin } from '../../lib/supabase'
+import { TRPCError } from '@trpc/server'
+import { GoogleGenerativeAI } from '@google/generative-ai'
+import sha256 from 'tiny-sha256'
+import { generateFinalPdf } from '../../lib/pdf'
+import { uploadToArweave } from '../../lib/irys'
+import { mintDocNftOnChain } from '../../lib/solana'
+import { PublicKey } from '@solana/web3.js'
 
 // --- AI CONFIGURATION ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -11,6 +17,14 @@ if (!GEMINI_API_KEY) {
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Helper function for adding timeouts to promises
+const withTimeout = <T>(promise: Promise<T>, ms: number, message: string): Promise<T> => {
+  const timeout = new Promise<T>((_, reject) =>
+    setTimeout(() => reject(new Error(message)), ms)
+  );
+  return Promise.race([promise, timeout]);
+};
 
 export const documentsRouter = t.router({
   /**
@@ -283,5 +297,123 @@ export const documentsRouter = t.router({
         })
       }
       return data
+    }),
+  finalizeAndMint: protectedProcedure
+    .input(z.object({ documentId: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const { user } = ctx
+      const { documentId } = input
+
+      console.log(`[LOG] ENTERING finalizeAndMint for doc: ${documentId}, user: ${user.sub}`)
+
+      // --- Layer 2: Comprehensive Error Handling ---
+      const { data: document, error: docError } = await supabaseAdmin
+        .from('documents')
+        .select(`*, template:templates (*)`)
+        .eq('id', documentId)
+        .eq('owner_id', user.sub)
+        .single()
+
+      if (docError) {
+        console.error(`[LOG] Database error fetching document:`, docError)
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Failed to fetch document: ${docError.message}` })
+      }
+      if (!document) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Document not found or you do not have permission.' })
+      }
+      if (document.status !== 'signed') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Document must be in "signed" state to be minted, but is "${document.status}".` })
+      }
+
+      // --- Layer 3: Proper Empty Data Detection ---
+      if (!document.filled_data_json || Object.keys(document.filled_data_json).length === 0) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Document has no filled data to finalize. Please fill the document first.' })
+      }
+
+      // We will wrap each major async operation in its own try/catch block
+      // for progressive error boundaries.
+      let finalPdfBuffer: Buffer;
+      let documentHash: Uint8Array;
+      let arweaveTx: string;
+      let solanaTx: string;
+
+      try {
+        console.log(`[LOG] [1/5] About to generate PDF...`)
+        console.log(`[LOG] Template storage path: ${document.template.storage_path}`)
+        console.log(`[LOG] Document filled_data_json:`, document.filled_data_json)
+        
+        // --- Layer 4: Timeout Protection ---
+        finalPdfBuffer = await withTimeout(
+            generateFinalPdf(
+                document.template.storage_path,
+                document.filled_data_json as Record<string, string>
+            ),
+            30000, // 30 second timeout
+            'PDF generation timed out.'
+        );
+        console.log(`[LOG] [1/5] PDF generation COMPLETE. Buffer size: ${finalPdfBuffer.length}`)
+
+        console.log(`[LOG] [2/5] About to calculate hash...`)
+        documentHash = sha256(finalPdfBuffer)
+                if (!documentHash || documentHash.length === 0) {
+          throw new Error("SHA-256 hash calculation resulted in an empty value.");
+        }
+        console.log(`[LOG] [2/5] Hash calculation COMPLETE. Hash: ${Buffer.from(documentHash).toString('hex')}`)
+        console.log(`[LOG] [3/5] About to upload to Arweave/Irys...`)
+        arweaveTx = await withTimeout(
+            uploadToArweave(finalPdfBuffer),
+            120000, // 2 minute timeout for blockchain transaction
+            'Arweave/Irys upload timed out.'
+        );
+        console.log(`[LOG] [3/5] Arweave/Irys upload COMPLETE. TX: ${arweaveTx}`)
+
+          // Log the user object and the specific property we are about to use.
+        console.log('[LOG] Preparing to mint. User object:', JSON.stringify(user, null, 2));
+        console.log('[LOG] Wallet address from metadata:', user.app_metadata?.wallet_address);
+
+        console.log('[4/5] Minting DocNFT on Solana...')
+        const solanaTx = await withTimeout(
+            mintDocNftOnChain({
+                docSha256: Array.from(documentHash),
+                arweaveTx: arweaveTx,
+                // Add a check here as well to throw a clear error
+                parties: [new PublicKey(user.app_metadata.wallet_address!)],
+                signedAt: Math.floor(Date.now() / 1000),
+            }),
+            120000, // 2 minute timeout
+            'Solana NFT minting timed out.'
+        );
+
+        console.log(`[LOG] [4/5] Solana mint COMPLETE. TX: ${solanaTx}`)
+
+        console.log(`[LOG] [5/5] About to update database status...`)
+        await supabaseAdmin
+          .from('documents')
+          .update({ status: 'minted' })
+          .eq('id', documentId)
+
+        await supabaseAdmin
+          .from('signatures')
+          .update({ 
+            onchain_tx_signature: solanaTx,
+            arweave_tx_id: arweaveTx,
+          })
+          .eq('document_id', documentId)
+        console.log(`[LOG] [5/5] Database update COMPLETE.`)
+        
+        console.log(`[LOG] FINALIZING and returning response.`)
+        return { solanaTx, arweaveTx }
+
+      } catch (error) {
+        console.error(`[LOG] ERROR caught in finalizeAndMint pipeline:`, error)
+        let errorMessage = 'An unknown error occurred.'
+        if (error instanceof Error) {
+          errorMessage = error.message
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed during finalization: ${errorMessage}`,
+        })
+      }
     }),
 });

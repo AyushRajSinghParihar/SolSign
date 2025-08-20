@@ -3,9 +3,11 @@ import { CreateFastifyContextOptions } from "@trpc/server/adapters/fastify";
 import jwt from "jsonwebtoken";
 
 interface UserPayload {
-  sub: string; // This will be the wallet address
+  sub: string;
   role: string;
-  // ... any other fields you added to the JWT
+  app_metadata: {
+    wallet_address: string;
+  };
 }
 
 /**
@@ -28,6 +30,10 @@ export function createContext({ req, res }: CreateFastifyContextOptions) {
           token,
           process.env.SUPABASE_JWT_SECRET!,
         ) as UserPayload;
+        if (!decoded.sub || !decoded.app_metadata?.wallet_address) {
+          console.error('❌ JWT is valid but missing required fields (sub or wallet_address).', decoded)
+          return null;
+        }
         console.log(
           "✅ Backend successfully verified token for user:",
           decoded.sub,
