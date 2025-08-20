@@ -1,10 +1,9 @@
-/// <reference path="../../types/tiny-sha256.d.ts" />
 import { z } from 'zod'
 import { protectedProcedure, t } from '../context'
 import { supabaseAdmin } from '../../lib/supabase'
 import { TRPCError } from '@trpc/server'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import sha256 from 'tiny-sha256'
+import { webcrypto } from 'crypto' 
 import { generateFinalPdf } from '../../lib/pdf'
 import { uploadToArweave } from '../../lib/irys'
 import { mintDocNftOnChain } from '../../lib/solana'
@@ -354,8 +353,10 @@ export const documentsRouter = t.router({
         console.log(`[LOG] [1/5] PDF generation COMPLETE. Buffer size: ${finalPdfBuffer.length}`)
 
         console.log(`[LOG] [2/5] About to calculate hash...`)
-        documentHash = sha256(finalPdfBuffer)
-                if (!documentHash || documentHash.length === 0) {
+        const hashBuffer = await webcrypto.subtle.digest('SHA-256', finalPdfBuffer)
+        // Convert the ArrayBuffer to a Uint8Array, which is what our tools expect.
+        const documentHash = new Uint8Array(hashBuffer)
+        if (!documentHash || documentHash.length === 0) {
           throw new Error("SHA-256 hash calculation resulted in an empty value.");
         }
         console.log(`[LOG] [2/5] Hash calculation COMPLETE. Hash: ${Buffer.from(documentHash).toString('hex')}`)
