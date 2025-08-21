@@ -1,4 +1,4 @@
-// [File Begins] apps/backend/src/lib/solana.ts (Final Combined Version)
+// [File Begins] apps/backend/src/lib/solana.ts (Definitive Final Version)
 import { AnchorProvider, Program, Wallet, BN } from '@coral-xyz/anchor'
 import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js'
 import { readFileSync, existsSync } from 'fs'
@@ -9,10 +9,8 @@ const getSolanaConnection = () => {
   const rpcUrl = process.env.SOLANA_RPC_ENDPOINT
   if (!rpcUrl) throw new Error('Solana: SOLANA_RPC_ENDPOINT is not set.')
   const connection = new Connection(rpcUrl, 'confirmed')
-  
   const keypairPath = process.env.PAYER_KEYPAIR_PATH
   if (!keypairPath) throw new Error('Solana: PAYER_KEYPAIR_PATH is not set.')
-
   if (!existsSync(keypairPath)) {
     throw new Error(`Solana: Keypair file not found at path: ${keypairPath}`);
   }
@@ -32,6 +30,7 @@ const getProgram = () => {
   return new Program<SolsignProgram>(IDL as SolsignProgram, provider)
 }
 
+
 interface MintNftArgs {
   docSha256: number[];
   arweaveTx: string;
@@ -47,7 +46,6 @@ export async function mintDocNftOnChain({
 }: MintNftArgs): Promise<string> {
   const program = getProgram()
   const docNftAccount = Keypair.generate()
-  // Explicitly get the payer from the provider's wallet
   const payer = (program.provider.wallet as Wallet).payer;
 
   try {
@@ -59,16 +57,18 @@ export async function mintDocNftOnChain({
         new BN(signedAt)
       )
       .accounts({
-        // Use snake_case to match the IDL
-        doc_nft: docNftAccount.publicKey,
+        // --- THE FIX ---
+        // 1. Use camelCase names, which the Anchor runtime expects.
+        // 2. Use `as any` to bypass the incorrect, auto-generated TypeScript types.
+        docNft: docNftAccount.publicKey,
         authority: payer.publicKey,
-        system_program: SystemProgram.programId,
-      } as any) // Your correct `as any` workaround
-      // --- THIS IS THE FINAL FIX ---
-      // Be explicit about ALL signers: the payer AND the new account.
-      .signers([payer, docNftAccount])
-      // --- END OF FINAL FIX ---
-      .rpc()
+        systemProgram: SystemProgram.programId,
+      } as any)
+      // 3. Explicitly provide the new account as an additional signer.
+      // The `payer` is automatically included by the provider.
+      .signers([docNftAccount])
+      .rpc();
+    // --- END OF FIX ---
     
     console.log(`Solana: Successfully minted DocNFT. Transaction: ${txSignature}`)
     return txSignature
