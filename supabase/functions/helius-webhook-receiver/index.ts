@@ -1,58 +1,72 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// This is a shared secret between our function and Helius.
-// It proves that the request is legitimate.
+// --- CONFIGURATION ---
 const HELIUS_WEBHOOK_SECRET = Deno.env.get('HELIUS_WEBHOOK_SECRET')
-if (!HELIUS_WEBHOOK_SECRET) {
-  throw new Error('Missing environment variable HELIUS_WEBHOOK_SECRET')
-}
+if (!HELIUS_WEBHOOK_SECRET) throw new Error('Missing HELIUS_WEBHOOK_SECRET')
 
-// Standard CORS headers to allow requests from any origin.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
+if (!SUPABASE_URL) throw new Error('Missing SUPABASE_URL')
+
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error('Missing SUPABASE_SERVICE_ROLE_KEY')
+
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Create a Supabase Admin Client. We use the service_role key for powerful access.
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+// --- MAIN FUNCTION ---
 serve(async (req) => {
-  // A CORS preflight request is sent by the browser to check if the server
-  // will allow a request from a different origin. We must handle this.
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 1. Authenticate the request by checking the secret in the URL.
+    // 1. Authenticate the request (unchanged)
     const url = new URL(req.url)
-    const incomingSecret = url.searchParams.get('secret')
-
-    if (incomingSecret !== HELIUS_WEBHOOK_SECRET) {
-      return new Response(JSON.stringify({ error: 'Invalid secret.' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (url.searchParams.get('secret') !== HELIUS_WEBHOOK_SECRET) {
+      return new Response(JSON.stringify({ error: 'Invalid secret.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // 2. If authenticated, process the webhook payload.
-    const requestBody = await req.json()
-    console.log('Received valid payload from Helius:', JSON.stringify(requestBody, null, 2))
+    // 2. Process the webhook payload (unchanged)
+    const webhookData = await req.json()
+    console.log('Received valid payload from Helius:', JSON.stringify(webhookData, null, 2))
 
-    // TODO in Part 2: Add logic here to broadcast to Supabase Realtime.
+    // --- THIS IS THE NEW LOGIC ---
+    // 3. Broadcast an event using Supabase Realtime
+    // We'll broadcast to a channel named 'solsign-events'
+    const channel = supabaseAdmin.channel('solsign-events')
+    
+    // The event will be 'doc-minted', and we'll send a subset of the Helius data.
+    // Helius sends an array of transactions, we'll process the first one.
+    const transactionInfo = webhookData[0] || {}
+    
+    const broadcastPayload = {
+      eventType: 'doc-minted',
+      signature: transactionInfo.signature,
+      account: transactionInfo.accountData?.[0]?.account, // The DocNFT account address
+      timestamp: transactionInfo.timestamp,
+    }
 
-    return new Response(
-      JSON.stringify({ received: true }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+    const status = await channel.send({
+      type: 'broadcast',
+      event: 'doc-minted',
+      payload: broadcastPayload,
+    })
+
+    if (status === 'ok') {
+      console.log('Successfully broadcast "doc-minted" event to Supabase Realtime.')
+    } else {
+      console.error('Failed to broadcast event to Supabase Realtime. Status:', status)
+    }
+
+    return new Response(JSON.stringify({ received: true, broadcast: status }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (error) {
     console.error('Error processing Helius webhook:', error)
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    )
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
