@@ -10,11 +10,19 @@
     "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@eslint/js": "^9.34.0",
     "@playwright/test": "^1.54.1",
     "@types/node": "^22.15.3",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.34.0",
+    "eslint-config-prettier": "^10.1.1",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^16.3.0",
     "prettier": "^3.6.2",
     "turbo": "^2.5.5",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.42.0"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

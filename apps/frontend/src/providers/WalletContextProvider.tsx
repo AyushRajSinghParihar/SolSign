@@ -26,7 +26,7 @@ export const WalletContextProvider: FC<{ children: ReactNode }> = ({
   const wallets = useMemo(
     () => [new PhantomWalletAdapter(), new SolflareWalletAdapter()],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [network],
+    [network]
   );
 
   return (

@@ -20,16 +20,7 @@
         "* `parties` - A vector of public keys for the signing parties.",
         "* `signed_at` - A Unix timestamp of when the document was finalized."
       ],
-      "discriminator": [
-        232,
-        177,
-        63,
-        155,
-        111,
-        246,
-        130,
-        70
-      ],
+      "discriminator": [232, 177, 63, 155, 111, 246, 130, 70],
       "accounts": [
         {
           "name": "doc_nft",
@@ -65,10 +56,7 @@
         {
           "name": "doc_sha256",
           "type": {
-            "array": [
-              "u8",
-              32
-            ]
+            "array": ["u8", 32]
           }
         },
         {
@@ -91,16 +79,7 @@
   "accounts": [
     {
       "name": "DocNft",
-      "discriminator": [
-        199,
-        39,
-        114,
-        50,
-        218,
-        211,
-        229,
-        196
-      ]
+      "discriminator": [199, 39, 114, 50, 218, 211, 229, 196]
     }
   ],
   "errors": [
@@ -138,10 +117,7 @@
               "We use a fixed-size array for efficiency, as SHA-256 is always 32 bytes."
             ],
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "array": ["u8", 32]
             }
           },
           {

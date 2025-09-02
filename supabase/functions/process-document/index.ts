@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   try {
     const adminSupabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
     const { record } = await req.json();
@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     const pathParts = filePath.split("/");
     if (pathParts.length < 2) {
       throw new Error(
-        `Invalid file path format. Expected '<user_id>/<file_name>', but got '${filePath}'.`,
+        `Invalid file path format. Expected '<user_id>/<file_name>', but got '${filePath}'.`
       );
     }
     const ownerId = pathParts[0]; // The first part of the path IS the user's UUID.
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
     if (existingTemplate) {
       console.log(
-        `Template with hash ${sha256_hash} already exists. Skipping.`,
+        `Template with hash ${sha256_hash} already exists. Skipping.`
       );
       await adminSupabaseClient.storage.from("documents").remove([filePath]);
       console.log(`Deleted duplicate file: ${filePath}`);
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
         {
           headers: { "Content-Type": "application/json" },
           status: 200,
-        },
+        }
       );
     }
 
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       {
         headers: { "Content-Type": "application/json" },
         status: 200,
-      },
+      }
     );
   } catch (error) {
     console.error("Error processing document:", error);

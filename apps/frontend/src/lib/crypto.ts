@@ -13,14 +13,14 @@ const SALT = "SolsignAI-is-the-best-app-ever";
  * @returns A CryptoKey object for AES-GCM encryption/decryption.
  */
 async function deriveKeyFromSignature(
-  signature: Uint8Array,
+  signature: Uint8Array
 ): Promise<CryptoKey> {
   const keyMaterial = await window.crypto.subtle.importKey(
     "raw",
     signature.slice(0, 32), // Use the first 32 bytes of the signature for the key material
     { name: "PBKDF2" },
     false,
-    ["deriveKey"],
+    ["deriveKey"]
   );
 
   return window.crypto.subtle.deriveKey(
@@ -33,7 +33,7 @@ async function deriveKeyFromSignature(
     keyMaterial,
     { name: "AES-GCM", length: 256 },
     true,
-    ["encrypt", "decrypt"],
+    ["encrypt", "decrypt"]
   );
 }
 
@@ -45,7 +45,7 @@ async function deriveKeyFromSignature(
  */
 export async function encryptData(
   key: CryptoKey,
-  data: object,
+  data: object
 ): Promise<string> {
   const iv = window.crypto.getRandomValues(new Uint8Array(12)); // Initialization Vector
   const encodedData = new TextEncoder().encode(JSON.stringify(data));
@@ -56,7 +56,7 @@ export async function encryptData(
       iv: iv,
     },
     key,
-    encodedData,
+    encodedData
   );
 
   const combined = new Uint8Array(iv.length + encryptedContent.byteLength);
@@ -74,7 +74,7 @@ export async function encryptData(
  */
 export async function decryptData<T>(
   key: CryptoKey,
-  ciphertext: string,
+  ciphertext: string
 ): Promise<T> {
   const combined = Buffer.from(ciphertext, "base64");
   const iv = combined.slice(0, 12);
@@ -86,7 +86,7 @@ export async function decryptData<T>(
       iv: iv,
     },
     key,
-    encryptedContent,
+    encryptedContent
   );
 
   return JSON.parse(new TextDecoder().decode(decryptedContent)) as T;
@@ -101,7 +101,7 @@ let derivedKey: CryptoKey | null = null;
  */
 export const useEncryptionKey = () => {
   const getKey = async (
-    signMessage: (message: Uint8Array) => Promise<Uint8Array>,
+    signMessage: (message: Uint8Array) => Promise<Uint8Array>
   ): Promise<CryptoKey> => {
     if (derivedKey) {
       return derivedKey;
@@ -109,7 +109,7 @@ export const useEncryptionKey = () => {
 
     // This message is for deriving the key and should be consistent.
     const message = new TextEncoder().encode(
-      "Login to SolSignAI to access your encrypted vault.",
+      "Login to SolSignAI to access your encrypted vault."
     );
     const signature = await signMessage(message);
     const key = await deriveKeyFromSignature(signature);

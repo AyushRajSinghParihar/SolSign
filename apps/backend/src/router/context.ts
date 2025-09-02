@@ -28,15 +28,18 @@ export function createContext({ req, res }: CreateFastifyContextOptions) {
       try {
         const decoded = jwt.verify(
           token,
-          process.env.SUPABASE_JWT_SECRET!,
+          process.env.SUPABASE_JWT_SECRET!
         ) as UserPayload;
         if (!decoded.sub || !decoded.app_metadata?.wallet_address) {
-          console.error('❌ JWT is valid but missing required fields (sub or wallet_address).', decoded)
+          console.error(
+            "❌ JWT is valid but missing required fields (sub or wallet_address).",
+            decoded
+          );
           return null;
         }
         console.log(
           "✅ Backend successfully verified token for user:",
-          decoded.sub,
+          decoded.sub
         ); // <-- LOG 4
         return decoded;
       } catch (error: any) {

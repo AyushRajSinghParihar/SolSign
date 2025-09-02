@@ -12,5 +12,5 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <App />
       </TRPCProvider>
     </WalletContextProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );

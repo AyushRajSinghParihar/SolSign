@@ -17,7 +17,7 @@ export const templatesRouter = t.router({
         owner:users (
           wallet_address
         )
-      `,
+      `
       )
       .order("created_at", { ascending: false });
 

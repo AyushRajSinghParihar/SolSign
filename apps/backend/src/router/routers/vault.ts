@@ -12,7 +12,7 @@ export const vaultRouter = t.router({
       z.object({
         type: z.string().min(1, "Type is required"),
         ciphertext: z.string().min(1, "Ciphertext is required"),
-      }),
+      })
     )
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx; // user.sub is the UUID

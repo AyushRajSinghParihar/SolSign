@@ -5,7 +5,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
 
 if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error(
-    "Supabase URL or Service Key is not defined in environment variables.",
+    "Supabase URL or Service Key is not defined in environment variables."
   );
 }
 

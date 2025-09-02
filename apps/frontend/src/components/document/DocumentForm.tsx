@@ -33,7 +33,7 @@ export function DocumentForm({
   // Use local state to manage the document, allowing us to update its status after signing
   const [document, setDocument] = useState(initialDocument);
   const [formState, setFormState] = useState<FormState>(
-    document.filled_data_json || {},
+    document.filled_data_json || {}
   );
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
@@ -53,12 +53,12 @@ export function DocumentForm({
         const key = await getKey(signMessage);
         const decryptedVaultItems = await Promise.all(
           getVaultItemsQuery.data.map((item) =>
-            decryptData(key, item.ciphertext),
-          ),
+            decryptData(key, item.ciphertext)
+          )
         );
         const vaultData = decryptedVaultItems.reduce(
           (acc, item) => ({ ...acc, ...item }),
-          {},
+          {}
         );
 
         const autofilledData = await autofillMutation.mutateAsync({
@@ -103,7 +103,7 @@ export function DocumentForm({
         loading: "Saving draft...",
         success: "Draft saved successfully!",
         error: (err) => `Failed to save: ${err.message}`,
-      },
+      }
     );
   };
 
@@ -122,7 +122,7 @@ export function DocumentForm({
     // 2. Create a stable JSON string and hash it
     const documentJson = JSON.stringify(
       formState,
-      Object.keys(formState).sort(),
+      Object.keys(formState).sort()
     );
     const documentHash = sha256(new TextEncoder().encode(documentJson));
 

@@ -12,7 +12,7 @@ export function MainLayout() {
             className={({ isActive }) =>
               cn(
                 "transition-colors hover:text-foreground",
-                isActive ? "text-foreground" : "text-muted-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground"
               )
             }
           >
@@ -23,7 +23,7 @@ export function MainLayout() {
             className={({ isActive }) =>
               cn(
                 "transition-colors hover:text-foreground",
-                isActive ? "text-foreground" : "text-muted-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground"
               )
             }
           >
@@ -35,7 +35,7 @@ export function MainLayout() {
             className={({ isActive }) =>
               cn(
                 "transition-colors hover:text-foreground",
-                isActive ? "text-foreground" : "text-muted-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground"
               )
             }
           >

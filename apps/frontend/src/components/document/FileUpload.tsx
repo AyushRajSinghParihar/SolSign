@@ -81,7 +81,7 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
         // Reset the file input so the user can upload another one
         setSelectedFile(null);
         const fileInput = document.querySelector(
-          'input[type="file"]',
+          'input[type="file"]'
         ) as HTMLInputElement;
         if (fileInput) fileInput.value = "";
       },

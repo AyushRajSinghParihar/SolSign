@@ -1,6 +1,6 @@
-import { DocumentList } from '@/components/document/DocumentList'
-import { TemplateList } from '@/components/template/TemplateList'
-import { Separator } from '@/components/ui/separator'
+import { DocumentList } from "@/components/document/DocumentList";
+import { TemplateList } from "@/components/template/TemplateList";
+import { Separator } from "@/components/ui/separator";
 
 export function HomePage() {
   return (
@@ -11,12 +11,12 @@ export function HomePage() {
           Manage your documents and templates.
         </p>
       </div>
-      
+
       <DocumentList />
-      
+
       <Separator className="my-8" />
 
       <TemplateList />
     </div>
-  )
+  );
 }

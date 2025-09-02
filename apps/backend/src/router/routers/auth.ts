@@ -28,7 +28,7 @@ export const authRouter = t.router({
         publicKey: z.string(),
         signature: z.string(),
         nonce: z.string(),
-      }),
+      })
     )
     .mutation(async ({ input }) => {
       try {
@@ -40,7 +40,7 @@ export const authRouter = t.router({
         const isVerified = nacl.sign.detached.verify(
           nonceBytes,
           signatureBytes,
-          publicKeyBytes,
+          publicKeyBytes
         );
 
         if (!isVerified) {
@@ -81,7 +81,7 @@ export const authRouter = t.router({
             }
 
             const existingUser = users.find(
-              (u) => u.user_metadata?.wallet_address === input.publicKey,
+              (u) => u.user_metadata?.wallet_address === input.publicKey
             );
             if (!existingUser) {
               throw new TRPCError({
@@ -95,7 +95,7 @@ export const authRouter = t.router({
             // A different, unexpected error occurred during creation.
             console.error(
               "❌ Supabase user creation failed with an unexpected error:",
-              JSON.stringify(creationError, null, 2),
+              JSON.stringify(creationError, null, 2)
             );
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
@@ -133,7 +133,7 @@ export const authRouter = t.router({
               wallet_address: input.publicKey,
             },
           },
-          jwtSecret,
+          jwtSecret
         );
 
         return { token };

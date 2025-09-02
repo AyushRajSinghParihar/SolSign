@@ -17,7 +17,7 @@ export const TRPCProvider: React.FC<{ children: React.ReactNode }> = ({
   // This is the key to solving the stale closure problem.
   const trpcClient = useMemo(() => {
     console.log(
-      `🚀 Creating new tRPC client. Token is: ${token ? "present" : "null"}`,
+      `🚀 Creating new tRPC client. Token is: ${token ? "present" : "null"}`
     );
     return trpc.createClient({
       links: [

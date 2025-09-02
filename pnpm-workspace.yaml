@@ -1,4 +1,4 @@
 packages:
   - "apps/*"
   - "packages/*"
-  - 'solana/solsign_program'
+  - "solana/solsign_program"
