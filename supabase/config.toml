@@ -342,3 +342,36 @@ entrypoint = "./functions/helius-webhook-receiver/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/helius-webhook-receiver/*.html" ]
+
+[functions.send-mint-email]
+enabled = true
+verify_jwt = true
+import_map = "./functions/send-mint-email/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/send-mint-email/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/send-mint-email/*.html" ]
+
+[functions.send-mint-emaiclear]
+enabled = true
+verify_jwt = true
+import_map = "./functions/send-mint-emaiclear/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/send-mint-emaiclear/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/send-mint-emaiclear/*.html" ]
+
+[functions.send-mint-emaiclearclear]
+enabled = true
+verify_jwt = true
+import_map = "./functions/send-mint-emaiclearclear/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/send-mint-emaiclearclear/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/send-mint-emaiclearclear/*.html" ]

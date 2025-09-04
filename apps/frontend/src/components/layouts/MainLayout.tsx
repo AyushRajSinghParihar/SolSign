@@ -29,7 +29,6 @@ export function MainLayout() {
           >
             Data Vault
           </NavLink>
-          {/* --- ADD THIS NEW LINK --- */}
           <NavLink
             to="/documents/new"
             className={({ isActive }) =>
@@ -40,6 +39,16 @@ export function MainLayout() {
             }
           >
             New Document
+          </NavLink>
+                    <NavLink to="/profile"
+            className={({ isActive }) =>
+              cn(
+                'transition-colors hover:text-foreground',
+                isActive ? 'text-foreground' : 'text-muted-foreground',
+              )
+            }
+          >
+            Profile
           </NavLink>
         </nav>
         <div className="ml-auto">
