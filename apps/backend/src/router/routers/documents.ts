@@ -5,6 +5,7 @@ import { TRPCError } from "@trpc/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { webcrypto } from "crypto";
 import { generateFinalPdf } from "../../lib/pdf";
+import { generatePdfFromMarkdown } from "../../lib/markdown";
 import { uploadToArweave } from "../../lib/irys";
 import { mintDocNftOnChain } from "../../lib/solana";
 import { PublicKey } from "@solana/web3.js";
@@ -338,15 +339,14 @@ export const documentsRouter = t.router({
         });
       }
 
-      // --- Layer 3: Proper Empty Data Detection ---
-      if (
-        !document.filled_data_json ||
-        Object.keys(document.filled_data_json).length === 0
-      ) {
+      // --- Layer 3: Updated Data Detection for Both Document Types ---
+      const hasTemplateData = document.filled_data_json && Object.keys(document.filled_data_json).length > 0;
+      const hasAiContent = document.content && document.content.length > 0;
+
+      if (!hasTemplateData && !hasAiContent) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message:
-            "Document has no filled data to finalize. Please fill the document first.",
+          message: "Document has no data or content to finalize.",
         });
       }
 
@@ -359,23 +359,42 @@ export const documentsRouter = t.router({
 
       try {
         console.log(`[LOG] [1/5] About to generate PDF...`);
-        console.log(
-          `[LOG] Template storage path: ${document.template.storage_path}`
-        );
-        console.log(
-          `[LOG] Document filled_data_json:`,
-          document.filled_data_json
-        );
+        
+        // --- Layer 4: Conditional PDF Generation Based on Document Type ---
+        if (hasTemplateData && document.template) {
+          // Logic for template-based documents (unchanged)
+          console.log(
+            `[LOG] Template storage path: ${document.template.storage_path}`
+          );
+          console.log(
+            `[LOG] Document filled_data_json:`,
+            document.filled_data_json
+          );
 
-        // --- Layer 4: Timeout Protection ---
-        finalPdfBuffer = await withTimeout(
-          generateFinalPdf(
-            document.template.storage_path,
-            document.filled_data_json as Record<string, string>
-          ),
-          30000, // 30 second timeout
-          "PDF generation timed out."
-        );
+          finalPdfBuffer = await withTimeout(
+            generateFinalPdf(
+              document.template.storage_path,
+              document.filled_data_json as Record<string, string>
+            ),
+            30000, // 30 second timeout
+            "PDF generation timed out."
+          );
+        } else if (hasAiContent) {
+          // New logic for AI-generated documents
+          console.log(
+            `[LOG] Generating PDF from AI content, content length: ${document.content!.length}`
+          );
+
+          finalPdfBuffer = await withTimeout(
+            generatePdfFromMarkdown(document.content!),
+            30000, // 30 second timeout
+            "PDF generation from Markdown timed out."
+          );
+        } else {
+          // This should be unreachable due to the validation above, but it's good practice
+          throw new Error("Document is in an invalid state with no data to process.");
+        }
+        
         console.log(
           `[LOG] [1/5] PDF generation COMPLETE. Buffer size: ${finalPdfBuffer.length}`
         );
