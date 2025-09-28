@@ -1,8 +1,8 @@
-import type { UseQueryResult } from "@tanstack/react-query";
 import type { AppRouter } from "@repo/api";
 import type { inferRouterOutputs } from "@trpc/server";
 import { useEffect, useState } from "react";
 import { decryptData } from "@/lib/crypto";
+import { trpc } from "@/lib/trpc";
 import {
   Card,
   CardContent,
@@ -11,14 +11,13 @@ import {
   CardTitle,
 } from "../ui/card";
 import { Button } from "../ui/button";
-import { trpc } from "@/lib/trpc";
 
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type VaultItem = RouterOutput["vault"]["getItems"][0];
 type DecryptedItem = { fullName: string; homeAddress: string };
 
 type VaultListProps = {
-  query: UseQueryResult<VaultItem[]>;
+  query: ReturnType<typeof trpc.vault.getItems.useQuery>;
   getKey: () => Promise<CryptoKey>;
 };
 
@@ -109,7 +108,7 @@ export function VaultList({ query, getKey }: VaultListProps) {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Your Vault Items</h2>
-      {query.data && query.data.length > 0 ? (
+      {query.data && Array.isArray(query.data) && query.data.length > 0 ? (
         query.data.map((item) => (
           <VaultItemCard key={item.id} item={item} getKey={getKey} />
         ))

@@ -7,7 +7,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { NewDocumentPage } from "./pages/NewDocumentPage";
 import { Toaster } from "./components/ui/sonner";
 import { DocumentPage } from "./pages/DocumentPage";
-import { ProfilePage } from "./pages/ProfilePage"; // <-- IMPORT THIS
+import { ProfilePage } from "./pages/ProfilePage";
+import { GenerateDocumentPage } from "./pages/GenerateDocumentPage";
 
 function App() {
   return (
@@ -27,8 +28,8 @@ function App() {
             <Route path="vault" element={<VaultPage />} />
             <Route path="documents/new" element={<NewDocumentPage />} />
             <Route path="documents/:id" element={<DocumentPage />} />
-            <Route path="profile" element={<ProfilePage />} />{" "}
-            {/* <-- ADD THIS */}
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="documents/generate" element={<GenerateDocumentPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

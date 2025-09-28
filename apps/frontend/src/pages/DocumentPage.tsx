@@ -1,7 +1,9 @@
-import { useParams } from "react-router-dom";
-import { trpc } from "@/lib/trpc";
-import { DocumentViewer } from "@/components/document/DocumentViewer";
-import { DocumentForm } from "@/components/document/DocumentForm";
+import { useParams } from 'react-router-dom'
+import { trpc } from '@/lib/trpc'
+import { DocumentViewer } from '@/components/document/DocumentViewer'
+import { DocumentForm } from '@/components/document/DocumentForm'
+import { Card, CardContent } from '@/components/ui/card'
+import ReactMarkdown from 'react-markdown'
 
 export function DocumentPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,9 +24,24 @@ export function DocumentPage() {
 
   const document = getDocumentQuery.data;
   const template = document.template;
+    if (document.content && !template) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">{document.name}</h1>
+        <Card>
+          <CardContent className="prose dark:prose-invert max-w-none p-6">
+            {/* Use a Markdown renderer to display the AI-generated content */}
+            <ReactMarkdown>{document.content}</ReactMarkdown>
+          </CardContent>
+        </Card>
+        {/* We can add signing/minting UI for AI docs here later */}
+      </div>
+    )
+  }
+
 
   if (!template) {
-    return <div>Error: This document is not linked to a valid template.</div>;
+    return <div>Error: This document is not linked to a valid template and has no generated content.</div>
   }
 
   return (

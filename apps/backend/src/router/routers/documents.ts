@@ -15,7 +15,7 @@ if (!GEMINI_API_KEY) {
   throw new Error("Missing environment variable GEMINI_API_KEY for backend");
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // Helper function for adding timeouts to promises
 const withTimeout = <T>(
@@ -353,9 +353,9 @@ export const documentsRouter = t.router({
       // We will wrap each major async operation in its own try/catch block
       // for progressive error boundaries.
       let finalPdfBuffer: Buffer;
-      let documentHash: Uint8Array;
+      // let documentHash: Uint8Array;
       let arweaveTx: string;
-      let solanaTx: string;
+      // let solanaTx: string;
 
       try {
         console.log(`[LOG] [1/5] About to generate PDF...`);

@@ -10,7 +10,7 @@ if (!GEMINI_API_KEY) {
   throw new Error('Missing environment variable GEMINI_API_KEY for backend')
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' })
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
 
 export const aiRouter = t.router({
   /**

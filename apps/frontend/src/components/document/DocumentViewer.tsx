@@ -45,7 +45,7 @@ export function DocumentViewer({ storagePath }: DocumentViewerProps) {
   return (
     <div className="h-full overflow-y-auto border rounded-lg">
       <Document file={fileUrl} onLoadSuccess={onDocumentLoadSuccess}>
-        {Array.from(new Array(numPages), (el, index) => (
+        {Array.from(new Array(numPages), (_, index) => (
           <Page key={`page_${index + 1}`} pageNumber={index + 1} />
         ))}
       </Document>

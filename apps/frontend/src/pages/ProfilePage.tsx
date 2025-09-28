@@ -23,7 +23,7 @@ export function ProfilePage() {
       ) : getProfileQuery.isError ? (
         <p className="text-destructive">Failed to load your profile.</p>
       ) : (
-        <ProfileForm userProfile={getProfileQuery.data} />
+        getProfileQuery.data && <ProfileForm userProfile={getProfileQuery.data} />
       )}
     </div>
   )

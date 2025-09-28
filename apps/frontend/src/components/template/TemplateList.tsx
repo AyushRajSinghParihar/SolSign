@@ -104,12 +104,14 @@ export function TemplateList() {
 
   const getTemplatesQuery = trpc.templates.getTemplates.useQuery(undefined, {
     refetchInterval: 10000,
-    onError: (error) => {
-      toast.error("Failed to fetch templates", {
-        description: error.message,
-      });
-    },
   });
+
+  // Handle errors separately
+  if (getTemplatesQuery.error) {
+    toast.error("Failed to fetch templates", {
+      description: getTemplatesQuery.error.message,
+    });
+  }
 
   const handleUseTemplate = (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -167,14 +169,14 @@ export function TemplateList() {
                         {new Date(template.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
-                        {template.extracted_data_json.fields?.length || 0}
+                        {template.extracted_data_json?.fields?.length || 0}
                       </TableCell>
                       <TableCell>
-                        {template.extracted_data_json.clauses?.length || 0}
+                        {template.extracted_data_json?.clauses?.length || 0}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {template.owner?.wallet_address
-                          ? `${template.owner.wallet_address.slice(0, 6)}...`
+                        {Array.isArray(template.owner) && template.owner[0]?.wallet_address
+                          ? `${template.owner[0].wallet_address.slice(0, 6)}...`
                           : "N/A"}
                       </TableCell>
                       <TableCell className="text-right">

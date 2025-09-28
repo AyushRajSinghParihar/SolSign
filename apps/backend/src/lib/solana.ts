@@ -2,7 +2,7 @@
 import { AnchorProvider, Program, Wallet, BN } from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { readFileSync, existsSync } from "fs";
-import { SolsignProgram } from "../solana/idl/solsign_program";
+import type { SolsignProgram } from "../solana/idl/solsign_program";
 import IDL from "../solana/idl/solsign_program.json";
 
 const getSolanaConnection = () => {

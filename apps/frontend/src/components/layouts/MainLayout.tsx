@@ -38,9 +38,20 @@ export function MainLayout() {
               )
             }
           >
-            New Document
+            Upload Document
           </NavLink>
-                    <NavLink to="/profile"
+          <NavLink
+            to="/documents/generate"
+            className={({ isActive }) =>
+              cn(
+                "transition-colors hover:text-foreground",
+                isActive ? "text-foreground" : "text-muted-foreground"
+              )
+            }
+          >
+            Generate Document
+          </NavLink>
+          <NavLink to="/profile"
             className={({ isActive }) =>
               cn(
                 'transition-colors hover:text-foreground',

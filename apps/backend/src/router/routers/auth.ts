@@ -6,7 +6,7 @@ import nacl from "tweetnacl";
 import bs58 from "bs58";
 import jwt from "jsonwebtoken";
 import { supabaseAdmin } from "../../lib/supabase";
-import { User } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
 
 export const authRouter = t.router({
   /**

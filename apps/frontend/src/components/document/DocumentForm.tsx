@@ -12,6 +12,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
 import sha256 from "tiny-sha256";
+import { MintingProgressModal } from './MintingProgressModal';
 
 type DocumentWithTemplate = RouterOutputs["documents"]["getById"];
 type Template = DocumentWithTemplate["template"];
@@ -23,6 +24,9 @@ type DocumentFormProps = {
 
 type FormState = Record<string, string>;
 type Conflict = { field: string; issue: string };
+
+// Define the type for the modal's state
+type MintingState = React.ComponentProps<typeof MintingProgressModal>['state']
 
 export function DocumentForm({
   document: initialDocument,
@@ -42,6 +46,10 @@ export function DocumentForm({
   const conflictCheckMutation = trpc.documents.checkForConflicts.useMutation();
   const saveMutation = trpc.documents.save.useMutation();
   const signMutation = trpc.documents.sign.useMutation();
+  const finalizeAndMintMutation = trpc.documents.finalizeAndMint.useMutation();
+  
+  // State for the minting modal
+  const [mintingState, setMintingState] = useState<MintingState>({ status: 'idle' });
 
   const debouncedFormState = useDebounce(formState, 500);
   const isSigned = document.status === "signed";
@@ -56,13 +64,19 @@ export function DocumentForm({
             decryptData(key, item.ciphertext)
           )
         );
-        const vaultData = decryptedVaultItems.reduce(
-          (acc, item) => ({ ...acc, ...item }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const vaultData = decryptedVaultItems.reduce<Record<string, any>>(
+          (acc, item) => {
+            if (item && typeof item === 'object') {
+              return { ...acc, ...item };
+            }
+            return acc;
+          },
           {}
         );
 
         const autofilledData = await autofillMutation.mutateAsync({
-          templateFields: template.extracted_data_json.fields,
+          templateFields: template.extracted_data_json?.fields || [],
           vaultData,
         });
         setFormState(autofilledData);
@@ -145,78 +159,112 @@ export function DocumentForm({
     });
   };
 
-  const fields = template.extracted_data_json.fields || [];
+  // --- NEW FUNCTION ---
+  const handleFinalizeAndMint = async () => {
+    setMintingState({ status: 'loading', message: 'Initiating on-chain process...' })
+    
+    try {
+      const result = await finalizeAndMintMutation.mutateAsync({ documentId: document.id })
+      setMintingState({
+        status: 'success',
+        solanaTx: result.solanaTx,
+        arweaveTx: result.arweaveTx,
+      })
+      // Invalidate queries to refetch the document with its new "minted" status
+      // utils.documents.getById.invalidate({ id: document.id })
+      // utils.documents.getAll.invalidate()
+    } catch (error) {
+      setMintingState({
+        status: 'error',
+        message: error instanceof Error ? error.message : 'An unknown error occurred.',
+      })
+    }
+  }
+  // --- END NEW FUNCTION ---
+
+  const fields = template.extracted_data_json?.fields || [];
 
   return (
-    <div className="space-y-6">
-      {isSigned && (
-        <Alert
-          variant="default"
-          className="bg-green-50 border-green-200 text-green-800"
-        >
-          <CheckCircle className="h-4 w-4" />
-          <AlertTitle>Document Signed</AlertTitle>
-          <AlertDescription>
-            This document has been signed and is now read-only.
-          </AlertDescription>
-        </Alert>
-      )}
+    <>
+      {/* Render the modal. It will only be visible when its state is not 'idle' */}
+      <MintingProgressModal
+        state={mintingState}
+        onClose={() => setMintingState({ status: 'idle' })}
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Document Fields</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {autofillMutation.isPending && (
-            <p>Autofilling data from your vault...</p>
-          )}
-          {fields.map((field: { label: string }) => (
-            <div key={field.label}>
-              <Label htmlFor={field.label}>{field.label}</Label>
-              <Input
-                id={field.label}
-                value={formState[field.label] || ""}
-                onChange={(e) => handleInputChange(field.label, e.target.value)}
-                disabled={isSigned || autofillMutation.isPending} // Disable if signed
-              />
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        {isSigned && (
+          <Alert
+            variant="default"
+            className="bg-green-50 border-green-200 text-green-800"
+          >
+            <CheckCircle className="h-4 w-4" />
+            <AlertTitle>Document Signed</AlertTitle>
+            <AlertDescription>
+              This document has been signed and is now read-only.
+            </AlertDescription>
+          </Alert>
+        )}
 
-      {conflicts.length > 0 && !isSigned && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Potential Conflicts Detected!</AlertTitle>
-          <AlertDescription>
-            <ul className="list-disc pl-5 mt-2">
-              {conflicts.map((conflict, index) => (
-                <li key={index}>
-                  <strong>{conflict.field}:</strong> {conflict.issue}
-                </li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Document Fields</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {autofillMutation.isPending && (
+              <p>Autofilling data from your vault...</p>
+            )}
+            {fields.map((field: { label: string }) => (
+              <div key={field.label}>
+                <Label htmlFor={field.label}>{field.label}</Label>
+                <Input
+                  id={field.label}
+                  value={formState[field.label] || ""}
+                  onChange={(e) => handleInputChange(field.label, e.target.value)}
+                  disabled={isSigned || autofillMutation.isPending} // Disable if signed
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
 
-      {!isSigned && (
+        {conflicts.length > 0 && !isSigned && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Potential Conflicts Detected!</AlertTitle>
+            <AlertDescription>
+              <ul className="list-disc pl-5 mt-2">
+                {conflicts.map((conflict, index) => (
+                  <li key={index}>
+                    <strong>{conflict.field}:</strong> {conflict.issue}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* --- THIS IS THE UPDATED PART --- */}
         <div className="flex justify-end gap-4">
-          <Button
-            variant="outline"
-            onClick={handleSaveDraft}
-            disabled={saveMutation.isPending}
-          >
-            {saveMutation.isPending ? "Saving..." : "Save Draft"}
-          </Button>
-          <Button
-            onClick={handleSignDocument}
-            disabled={signMutation.isPending}
-          >
-            {signMutation.isPending ? "Signing..." : "Sign Document"}
-          </Button>
+          {document.status === 'draft' && (
+            <>
+              <Button variant="outline" onClick={handleSaveDraft} disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? 'Saving...' : 'Save Draft'}
+              </Button>
+              <Button onClick={handleSignDocument} disabled={signMutation.isPending}>
+                {signMutation.isPending ? 'Signing...' : 'Sign Document'}
+              </Button>
+            </>
+          )}
+
+          {document.status === 'signed' && (
+            <Button onClick={handleFinalizeAndMint} disabled={finalizeAndMintMutation.isPending}>
+              {finalizeAndMintMutation.isPending ? 'Minting...' : 'Finalize & Mint NFT'}
+            </Button>
+          )}
         </div>
-      )}
-    </div>
+        {/* --- END OF UPDATED PART --- */}
+      </div>
+    </>
   );
 }
