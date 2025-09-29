@@ -229,7 +229,74 @@ export const documentsRouter = t.router({
     }),
 
   /**
-   * Records a signature for a document and updates its status.
+   * Invites a new party to sign a document.
+   * Only the document owner can perform this action.
+   */
+  inviteParty: protectedProcedure
+    .input(
+      z.object({
+        documentId: z.string().uuid(),
+        email: z.string().email(),
+        wallet: z.string(), // basic string validation via zod; further validation below
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { user } = ctx;
+      const { documentId, email, wallet } = input;
+
+      // 1. Fetch the document and its current parties
+      const { data: doc, error: docError } = await supabaseAdmin
+        .from("documents")
+        .select("owner_id, parties")
+        .eq("id", documentId)
+        .single();
+
+      if (docError || !doc) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+      }
+
+      // 2. Security Check: Ensure the inviter is the document owner
+      if (doc.owner_id !== user.sub) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the document owner can invite parties.",
+        });
+      }
+
+      // 3. Check for duplicates
+      const parties = (doc.parties as any[]) || [];
+      if (parties.some((p) => p.wallet === wallet || p.email === email)) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This party has already been invited.",
+        });
+      }
+
+      // 4. Add the new party (status pending by default)
+      const newParty = { wallet, email, status: "pending" };
+      const updatedParties = [...parties, newParty];
+
+      // 5. Update the document
+      const { data: updatedDocument, error: updateError } = await supabaseAdmin
+        .from("documents")
+        .update({ parties: updatedParties })
+        .eq("id", documentId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error inviting party:", updateError);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to invite party." });
+      }
+
+      // TODO: Trigger an invitation email to the new party.
+
+      return updatedDocument;
+    }),
+
+  /**
+   * Records a signature for a document and updates the party's status.
+   * The signer must be in the document's `parties` array.
    */
   sign: protectedProcedure
     .input(
@@ -241,49 +308,82 @@ export const documentsRouter = t.router({
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx;
       const { documentId, documentHash } = input;
+      const signerWallet = user.app_metadata?.wallet_address;
 
-      // Step 1: Insert the signature record
-      const { error: signatureError } = await supabaseAdmin
-        .from("signatures")
-        .insert({
-          document_id: documentId,
-          signer_id: user.sub,
-          signature_hash: documentHash,
-        });
-
-      if (signatureError) {
-        console.error("Error creating signature record:", signatureError);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Could not record signature.",
-        });
+      if (!signerWallet || typeof signerWallet !== "string" || signerWallet.trim() === "") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "No wallet associated with your user." });
       }
 
-      // Step 2: Update the document status to "signed"
-      const { data: updatedDocument, error: updateError } = await supabaseAdmin
+      const { data: doc, error: docError } = await supabaseAdmin
         .from("documents")
-        .update({
-          status: "signed",
-          updated_at: new Date().toISOString(),
-        })
+        .select("parties")
         .eq("id", documentId)
-        .eq("owner_id", user.sub)
-        .select()
         .single();
 
-      if (updateError) {
-        console.error(
-          "Error updating document status after signing:",
-          updateError
-        );
+      if (docError || !doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+
+      const parties = (doc.parties as any[]) || [];
+      const partyIndex = parties.findIndex((p) => p.wallet === signerWallet);
+
+      if (partyIndex === -1) {
         throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Could not update document status.",
+          code: "FORBIDDEN",
+          message: "You are not an invited party on this document.",
         });
+      }
+      if (parties[partyIndex].status === "signed") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "You have already signed this document." });
+      }
+
+      // Update the party's status
+      parties[partyIndex].status = "signed";
+
+      // Update the document with the new parties array
+      const { error: updateError } = await supabaseAdmin
+        .from("documents")
+        .update({ parties })
+        .eq("id", documentId);
+
+      if (updateError) {
+        console.error("Error updating parties on sign:", updateError);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to update document parties." });
+      }
+
+      // Insert the signature record (store wallet instead of internal user id)
+      const { error: insertSigErr } = await supabaseAdmin.from("signatures").insert({
+        document_id: documentId,
+        signer_wallet: signerWallet,
+        signature_hash: documentHash,
+      });
+
+      if (insertSigErr) {
+        console.error("Error inserting signature record:", insertSigErr);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to record signature." });
+      }
+
+      // Return the updated document
+      const { data: updatedDocument, error: fetchErr } = await supabaseAdmin
+        .from("documents")
+        .select()
+        .eq("id", documentId)
+        .single();
+
+      if (fetchErr) {
+        console.error("Error fetching updated document after sign:", fetchErr);
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch updated document." });
       }
 
       return updatedDocument;
     }),
+
+  /**
+   * Records a signature for a document and updates its status.
+   * (Legacy single-party sign — kept for backward compatibility)
+   *
+   * NOTE: The new `sign` above replaces the previous single-signer flow.
+   * If you still need an endpoint that writes `signer_id` (user.sub), add a separate route.
+   */
+
   getAll: protectedProcedure.query(async ({ ctx }) => {
     const { user } = ctx;
     const { data, error } = await supabaseAdmin
@@ -301,6 +401,7 @@ export const documentsRouter = t.router({
     }
     return data;
   }),
+
   finalizeAndMint: protectedProcedure
     .input(z.object({ documentId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -332,12 +433,15 @@ export const documentsRouter = t.router({
           message: "Document not found or you do not have permission.",
         });
       }
-      if (document.status !== "signed") {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `Document must be in "signed" state to be minted, but is "${document.status}".`,
-        });
+
+      // --- NEW: Multi-party validation ---
+      const parties = (document.parties as any[]) || [];
+      const allPartiesSigned = parties.length > 0 && parties.every((p) => p.status === "signed");
+
+      if (!allPartiesSigned) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot mint document until all parties have signed." });
       }
+      // --- END OF NEW VALIDATION ---
 
       // --- Layer 3: Updated Data Detection for Both Document Types ---
       const hasTemplateData = document.filled_data_json && Object.keys(document.filled_data_json).length > 0;
@@ -353,13 +457,11 @@ export const documentsRouter = t.router({
       // We will wrap each major async operation in its own try/catch block
       // for progressive error boundaries.
       let finalPdfBuffer: Buffer;
-      // let documentHash: Uint8Array;
       let arweaveTx: string;
-      // let solanaTx: string;
 
       try {
         console.log(`[LOG] [1/5] About to generate PDF...`);
-        
+
         // --- Layer 4: Conditional PDF Generation Based on Document Type ---
         if (hasTemplateData && document.template) {
           // Logic for template-based documents (unchanged)
@@ -394,7 +496,7 @@ export const documentsRouter = t.router({
           // This should be unreachable due to the validation above, but it's good practice
           throw new Error("Document is in an invalid state with no data to process.");
         }
-        
+
         console.log(
           `[LOG] [1/5] PDF generation COMPLETE. Buffer size: ${finalPdfBuffer.length}`
         );
@@ -424,23 +526,24 @@ export const documentsRouter = t.router({
           `[LOG] [3/5] Arweave/Irys upload COMPLETE. TX: ${arweaveTx}`
         );
 
-        // Log the user object and the specific property we are about to use.
-        console.log(
-          "[LOG] Preparing to mint. User object:",
-          JSON.stringify(user, null, 2)
-        );
-        console.log(
-          "[LOG] Wallet address from metadata:",
-          user.app_metadata?.wallet_address
-        );
+        // Build the list of PublicKey parties for minting (validate first)
+        let mintParties: PublicKey[] = [];
+        try {
+          mintParties = parties.map((p) => new PublicKey(p.wallet));
+        } catch (pkErr) {
+          console.error("[LOG] Invalid wallet in parties for minting:", pkErr);
+          throw new TRPCError({ code: "BAD_REQUEST", message: "One or more party wallet addresses are invalid." });
+        }
+
+        // Log the parties we will mint for
+        console.log("[LOG] Preparing to mint. Parties:", mintParties.map((k) => k.toBase58()));
 
         console.log("[4/5] Minting DocNFT on Solana...");
         const solanaTx = await withTimeout(
           mintDocNftOnChain({
             docSha256: Array.from(documentHash),
             arweaveTx: arweaveTx,
-            // Add a check here as well to throw a clear error
-            parties: [new PublicKey(user.app_metadata.wallet_address!)],
+            parties: mintParties,
             signedAt: Math.floor(Date.now() / 1000),
           }),
           120000, // 2 minute timeout

@@ -7,19 +7,30 @@ import ReactMarkdown from 'react-markdown'
 import { DocumentActions } from '@/components/document/DocumentActions'
 import { useState, useEffect } from 'react'
 import type { RouterOutputs } from '@repo/api'
+import { PartyList } from '@/components/document/PartyList'
+import { InviteDialog } from '@/components/document/InviteDialog'
+import { useAuth } from '@/hooks/useAuth'
+import { Button } from '@/components/ui/button'
 
 export function DocumentPage() {
   const { id } = useParams<{ id: string }>()
-  // Local state to manage document status changes
   const [document, setDocument] = useState<RouterOutputs['documents']['getById'] | null>(null)
+  const [isInviteOpen, setInviteOpen] = useState(false)
+  const { user: currentUser } = useAuth()
 
-  const getDocumentQuery = trpc.documents.getById.useQuery({ id: id! }, {
-    enabled: !!id,
-  })
+  const getDocumentQuery = trpc.documents.getById.useQuery(
+    { id: id! },
+    {
+      enabled: !!id,
+      onSuccess: (data) => {
+        setDocument(data)
+      },
+    }
+  )
 
   useEffect(() => {
     if (getDocumentQuery.data) {
-      setDocument(getDocumentQuery.data) // Sync local state with fetched data
+      setDocument(getDocumentQuery.data)
     }
   }, [getDocumentQuery.data])
 
@@ -31,45 +42,60 @@ export function DocumentPage() {
   }
 
   const template = document.template
+  const isOwner = currentUser?.id === document.owner_id
 
-  // --- THIS IS THE UNIFIED LAYOUT ---
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)]">
-      <div className="flex-grow grid md:grid-cols-2 gap-8 overflow-y-auto p-1">
-        {/* Left Panel: Always shows the visual document */}
-        <div className="h-full">
-          {template ? (
-            <DocumentViewer storagePath={template.storage_path} />
-          ) : (
-            <Card className="h-full overflow-y-auto">
-              <CardContent className="prose dark:prose-invert max-w-none p-6">
-                <ReactMarkdown>{document.content || ''}</ReactMarkdown>
-              </CardContent>
-            </Card>
-          )}
+    <>
+      <div className="flex flex-col h-[calc(100vh-8rem)]">
+        <div className="flex-grow grid md:grid-cols-2 gap-8 overflow-y-auto p-1">
+          {/* Left Panel: Visual Document */}
+          <div className="h-full">
+            {template ? (
+              <DocumentViewer storagePath={template.storage_path} />
+            ) : (
+              <Card className="h-full overflow-y-auto">
+                <CardContent className="prose dark:prose-invert max-w-none p-6">
+                  <ReactMarkdown>{document.content || ''}</ReactMarkdown>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* --- THIS IS THE FIX --- */}
+          {/* Right Panel: All metadata and forms in a single scrolling container */}
+          <div className="h-full overflow-y-auto space-y-6">
+            <h1 className="text-3xl font-bold">{document.name}</h1>
+            <p className="text-muted-foreground">
+              {template
+                ? 'Review the document and fill in the required fields.'
+                : 'Review the AI-generated document below before signing.'}
+            </p>
+
+            {/* Party list and invite button are now inside the scrolling container */}
+            <PartyList parties={document.parties} />
+            {isOwner && document.status === 'draft' && (
+              <Button onClick={() => setInviteOpen(true)}>Invite Signer</Button>
+            )}
+
+            {/* The form is now a sibling, not a replacement */}
+            {template && <DocumentForm document={document} template={template} />}
+          </div>
+          {/* --- END OF FIX --- */}
         </div>
 
-        {/* Right Panel: Shows context and metadata */}
-        <div>
-          <h1 className="text-3xl font-bold mb-2">{document.name}</h1>
-          <p className="text-muted-foreground mb-6">
-            {template 
-              ? "Review the document and fill in the required fields."
-              : "Review the AI-generated document below before signing."
-            }
-          </p>
-          {/* If it's a template, show the interactive form */}
-          {template && <DocumentForm document={document} template={template} />}
-        </div>
+        {/* Footer: Actions */}
+        <DocumentActions
+          document={document}
+          contentToSign={template ? document.filled_data-json || {} : document.content || ''}
+          onStatusChange={setDocument}
+        />
       </div>
 
-      {/* Footer: Always show the action buttons */}
-      <DocumentActions
-        document={document}
-        // For AI docs, the `content` is what's signed. For templates, the form handles it.
-        contentToSign={template ? document.filled_data_json || {} : document.content || ''}
-        onStatusChange={setDocument}
+      <InviteDialog
+        documentId={document.id}
+        isOpen={isInviteOpen}
+        onOpenChange={setInviteOpen}
       />
-    </div>
+    </>
   )
 }

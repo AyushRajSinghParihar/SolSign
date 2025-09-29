@@ -6,6 +6,7 @@ import { trpc } from '@/lib/trpc'
 import type { RouterOutputs } from '@repo/api'
 import { MintingProgressModal } from './MintingProgressModal'
 import { useState } from 'react'
+import { useAuth } from '@/hooks/useAuth'
 
 type Document = RouterOutputs['documents']['getById']
 type MintingState = React.ComponentProps<typeof MintingProgressModal>['state']
@@ -19,10 +20,18 @@ type DocumentActionsProps = {
 
 export function DocumentActions({ document, contentToSign, onStatusChange }: DocumentActionsProps) {
   const { signMessage } = useWallet()
+  const { user: currentUser } = useAuth()
   const [mintingState, setMintingState] = useState<MintingState>({ status: 'idle' });
 
   const signMutation = trpc.documents.sign.useMutation()
   const finalizeAndMintMutation = trpc.documents.finalizeAndMint.useMutation()
+
+  // --- NEW LOGIC ---
+  const parties = document.parties || []
+  const currentUserParty = parties.find(p => p.wallet === currentUser?.wallet_address)
+  const canSign = Boolean(currentUserParty && currentUserParty.status === 'pending')
+  const allSigned = parties.length > 0 && parties.every(p => p.status === 'signed')
+  // --- END NEW LOGIC ---
 
   const handleSignDocument = async () => {
     if (!signMessage) return toast.error('Wallet not connected.')
@@ -66,12 +75,14 @@ export function DocumentActions({ document, contentToSign, onStatusChange }: Doc
         onClose={() => setMintingState({ status: 'idle' })}
       />
       <div className="flex justify-end gap-4 p-4 border-t">
-        {document.status === 'draft' && (
+        {/* Show Sign button only if the current user is an invited, pending party */}
+        {canSign && (
           <Button onClick={handleSignDocument} disabled={signMutation.isPending}>
             {signMutation.isPending ? 'Signing...' : 'Sign Document'}
           </Button>
         )}
-        {document.status === 'signed' && (
+        {/* Show Mint button only if all parties have signed */}
+        {allSigned && document.status === 'signed' && (
           <Button onClick={handleFinalizeAndMint} disabled={finalizeAndMintMutation.isPending}>
             {finalizeAndMintMutation.isPending ? 'Minting...' : 'Finalize & Mint NFT'}
           </Button>
