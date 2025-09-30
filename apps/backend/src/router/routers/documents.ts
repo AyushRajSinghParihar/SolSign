@@ -9,6 +9,7 @@ import { generatePdfFromMarkdown } from "../../lib/markdown";
 import { uploadToArweave } from "../../lib/irys";
 import { mintDocNftOnChain } from "../../lib/solana";
 import { PublicKey } from "@solana/web3.js";
+import { sendEmail } from '../../lib/email';
 
 // --- AI CONFIGURATION ---
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -289,7 +290,18 @@ export const documentsRouter = t.router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to invite party." });
       }
 
-      // TODO: Trigger an invitation email to the new party.
+      const documentUrl = `http://localhost:5173/documents/${documentId}`; // TODO In production, use a real base URL
+      await sendEmail({
+        to: email,
+        subject: `You've been invited to sign a document on SolSignAI`,
+        html: `
+          <h1>Invitation to Sign</h1>
+          <p>You have been invited to sign the document "${updatedDocument.name}".</p>
+          <p>Please click the link below to review and sign the document:</p>
+          <p><a href="${documentUrl}">View Document</a></p>
+          <p>Thank you for using SolSignAI.</p>
+        `,
+      });
 
       return updatedDocument;
     }),
