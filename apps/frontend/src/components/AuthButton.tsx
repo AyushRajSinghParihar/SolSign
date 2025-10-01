@@ -5,30 +5,28 @@ import { trpc } from "../lib/trpc";
 import { useAuth } from "../hooks/useAuth";
 import bs58 from "bs58";
 import { Button } from "./ui/button";
-import { useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode"; // <-- IMPORT THIS
+import { useNavigate, useLocation } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 
-// Define the shape of the decoded JWT payload
 type DecodedToken = {
-  sub: string; // This is the user's UUID
+  sub: string;
   app_metadata: {
     wallet_address: string;
   };
-  // ... other JWT fields like exp, aud, etc.
 };
 
 export const AuthButton = () => {
   const { connected, publicKey, signMessage, disconnect } = useWallet();
-  const { user, setAuth, logout: authLogout } = useAuth(); // <-- Use `user` and `setAuth`
+  const { user, setAuth, logout: authLogout } = useAuth();
   const [isSigning, setIsSigning] = useState(false);
   const navigate = useNavigate();
-
+  const location = useLocation();
+  
   const getNonce = trpc.auth.getNonce.useMutation();
   const verifySignature = trpc.auth.verify.useMutation();
 
   const handleSign = async () => {
     if (!publicKey || !signMessage) return;
-
     setIsSigning(true);
     try {
       const { nonce } = await getNonce.mutateAsync({
@@ -41,16 +39,19 @@ export const AuthButton = () => {
         nonce,
       });
 
-      // Decode the JWT to get user info
       const decoded = jwtDecode<DecodedToken>(token);
       const userToStore = {
         id: decoded.sub,
         wallet_address: decoded.app_metadata.wallet_address,
       };
 
-      // Use the new setAuth function
       setAuth(token, userToStore);
-      navigate("/");
+      
+      // After successful login, recall the intended destination from the state.
+      const from = (location.state as any)?.from?.pathname || "/";
+      // Navigate the user to where they wanted to go.
+      navigate(from, { replace: true });
+
     } catch (error) {
       console.error("Sign-in failed", error);
     } finally {
@@ -64,18 +65,15 @@ export const AuthButton = () => {
   };
 
   useEffect(() => {
-    // We check for `user` now instead of `token` as the source of truth
     if (connected && !user && !isSigning && !verifySignature.isSuccess) {
       handleSign();
     }
-  }, [connected, user]); // <-- Dependency array updated
+  }, [connected, user]);
 
   if (!connected) {
     return <WalletMultiButton />;
   }
-
   if (user) {
-    // <-- Check for user object
     return (
       <div className="flex items-center gap-4">
         <p className="text-sm text-muted-foreground">

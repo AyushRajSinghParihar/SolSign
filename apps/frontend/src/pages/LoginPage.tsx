@@ -1,13 +1,20 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { AuthButton } from "../components/AuthButton";
 import { useAuth } from "../hooks/useAuth";
 
 export function LoginPage() {
   const { token } = useAuth();
+  const location = useLocation();
+  
+  // Recall the location the user was trying to access.
+  // The `(location.state as any)` is a standard way to handle this.
+  // Default to the homepage if no previous location was stored.
+  const from = (location.state as any)?.from?.pathname || "/";
 
-  // If user is already logged in, redirect them to the home page
+  // If a user who is already logged in navigates to this page,
+  // immediately send them to their intended destination.
   if (token) {
-    return <Navigate to="/" />;
+    return <Navigate to={from} replace />;
   }
 
   return (

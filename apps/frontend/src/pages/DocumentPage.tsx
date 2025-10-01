@@ -11,6 +11,8 @@ import { PartyList } from '@/components/document/PartyList'
 import { InviteDialog } from '@/components/document/InviteDialog'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
+import { AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 export function DocumentPage() {
   const { id } = useParams<{ id: string }>()
@@ -22,6 +24,7 @@ export function DocumentPage() {
     { id: id! },
     {
       enabled: !!id,
+      retry: false, // Don't retry if RLS blocks it
       onSuccess: (data) => {
         setDocument(data)
       },
@@ -34,15 +37,74 @@ export function DocumentPage() {
     }
   }, [getDocumentQuery.data])
 
-  if (getDocumentQuery.isLoading || !document) {
-    return <div>Loading document...</div>
+  // Loading state
+  if (getDocumentQuery.isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-8rem)]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading document...</p>
+        </div>
+      </div>
+    )
   }
+
+  // Error state (including RLS blocks)
   if (getDocumentQuery.isError) {
-    return <div>Error: {getDocumentQuery.error.message}</div>
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-8rem)] p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            {getDocumentQuery.error.message || 
+             "You don't have permission to view this document. Only the document owner and invited signers can access it."}
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  // Document not found or RLS filtered it out
+  if (!document) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-8rem)] p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Document Not Found</AlertTitle>
+          <AlertDescription>
+            This document doesn't exist or you don't have permission to access it.
+            Please check the link and try again.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
+
+  // Additional security check on the frontend
+  const isOwner = currentUser?.id === document.owner_id
+  const isParty = document.parties?.some(
+    (party: any) => party.wallet === currentUser?.wallet_address
+  )
+
+  if (!isOwner && !isParty) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-8rem)] p-4">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Unauthorized Access</AlertTitle>
+          <AlertDescription>
+            You are not authorized to view this document. Only the document owner 
+            and invited parties can access it.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
   }
 
   const template = document.template
-  const isOwner = currentUser?.id === document.owner_id
+  // The document is considered "locked" if it's signed or minted.
+  const isLocked = document.status === 'signed' || document.status === 'minted'
 
   return (
     <>
@@ -61,7 +123,6 @@ export function DocumentPage() {
             )}
           </div>
 
-          {/* --- THIS IS THE FIX --- */}
           {/* Right Panel: All metadata and forms in a single scrolling container */}
           <div className="h-full overflow-y-auto space-y-6">
             <h1 className="text-3xl font-bold">{document.name}</h1>
@@ -71,22 +132,22 @@ export function DocumentPage() {
                 : 'Review the AI-generated document below before signing.'}
             </p>
 
-            {/* Party list and invite button are now inside the scrolling container */}
+            {/* Party list and invite button */}
             <PartyList parties={document.parties} />
-            {isOwner && document.status === 'draft' && (
+            {/* Only show the Invite button if you are the owner AND the document is not yet locked. */}
+            {isOwner && !isLocked && (
               <Button onClick={() => setInviteOpen(true)}>Invite Signer</Button>
             )}
 
-            {/* The form is now a sibling, not a replacement */}
+            {/* Document form */}
             {template && <DocumentForm document={document} template={template} />}
           </div>
-          {/* --- END OF FIX --- */}
         </div>
 
         {/* Footer: Actions */}
         <DocumentActions
           document={document}
-          contentToSign={template ? document.filled_data-json || {} : document.content || ''}
+          contentToSign={template ? document.filled_data_json || {} : document.content || ''}
           onStatusChange={setDocument}
         />
       </div>

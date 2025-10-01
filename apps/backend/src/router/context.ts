@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { CreateFastifyContextOptions } from "@trpc/server/adapters/fastify";
 import jwt from "jsonwebtoken";
+import { createClient } from "@supabase/supabase-js";
 
 interface UserPayload {
   sub: string;
@@ -18,7 +19,7 @@ export function createContext({ req, res }: CreateFastifyContextOptions) {
   function getUserFromHeader() {
     if (req.headers.authorization) {
       const token = req.headers.authorization.split(" ")[1];
-      console.log("🔑 Backend received token:", token); // <-- LOG 3
+      console.log("🔑 Backend received token:", token);
 
       if (!token) {
         console.log('❌ No token found after "Bearer ".');
@@ -40,20 +41,37 @@ export function createContext({ req, res }: CreateFastifyContextOptions) {
         console.log(
           "✅ Backend successfully verified token for user:",
           decoded.sub
-        ); // <-- LOG 4
-        return decoded;
+        );
+        return { decoded, token }; // Return both decoded payload AND token
       } catch (error: any) {
-        console.error("❌ Backend JWT verification failed:", error.message); // <-- LOG 5
+        console.error("❌ Backend JWT verification failed:", error.message);
         return null;
       }
     }
-    console.log("🤷 No authorization header found on request."); // <-- LOG 6
+    console.log("🤷 No authorization header found on request.");
     return null;
   }
 
-  const user = getUserFromHeader();
+  const authResult = getUserFromHeader();
+  const user = authResult?.decoded || null;
+  
+  // Create a Supabase client with the user's JWT token (enforces RLS)
+  let supabase = null;
+  if (authResult?.token) {
+    supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_ANON_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${authResult.token}`,
+          },
+        },
+      }
+    );
+  }
 
-  return { req, res, user };
+  return { req, res, user, supabase };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
@@ -65,14 +83,15 @@ export const t = initTRPC.context<Context>().create();
  * It ensures that a user is authenticated before proceeding.
  */
 const isAuthed = t.middleware(({ next, ctx }) => {
-  if (!ctx.user?.sub) {
+  if (!ctx.user?.sub || !ctx.supabase) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
   return next({
     ctx: {
-      // Infers `user` as non-nullable
+      // Infers `user` and `supabase` as non-nullable
       user: ctx.user,
+      supabase: ctx.supabase,
     },
   });
 });

@@ -26,12 +26,11 @@ export function DocumentActions({ document, contentToSign, onStatusChange }: Doc
   const signMutation = trpc.documents.sign.useMutation()
   const finalizeAndMintMutation = trpc.documents.finalizeAndMint.useMutation()
 
-  // --- NEW LOGIC ---
   const parties = document.parties || []
   const currentUserParty = parties.find(p => p.wallet === currentUser?.wallet_address)
   const canSign = Boolean(currentUserParty && currentUserParty.status === 'pending')
-  const allSigned = parties.length > 0 && parties.every(p => p.status === 'signed')
-  // --- END NEW LOGIC ---
+  // The condition for minting is now simply checking the document's overall status.
+  const canMint = document.status === 'signed'
 
   const handleSignDocument = async () => {
     if (!signMessage) return toast.error('Wallet not connected.')
@@ -81,8 +80,9 @@ export function DocumentActions({ document, contentToSign, onStatusChange }: Doc
             {signMutation.isPending ? 'Signing...' : 'Sign Document'}
           </Button>
         )}
-        {/* Show Mint button only if all parties have signed */}
-        {allSigned && document.status === 'signed' && (
+        
+        {/* Show Mint button only if the document's status is "signed" */}
+        {canMint && (
           <Button onClick={handleFinalizeAndMint} disabled={finalizeAndMintMutation.isPending}>
             {finalizeAndMintMutation.isPending ? 'Minting...' : 'Finalize & Mint NFT'}
           </Button>

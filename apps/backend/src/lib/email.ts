@@ -13,7 +13,7 @@ export async function sendEmail(options: EmailOptions) {
   }
 
   const emailBody = {
-    from: 'SolSignAI <onboarding@resend.dev>',
+    from: 'SolSignAI <noreply@solsignai.com>',
     ...options,
   };
 
@@ -27,7 +27,8 @@ export async function sendEmail(options: EmailOptions) {
   });
 
   if (!response.ok) {
-    console.error('Failed to send email:', await response.json());
+    const errorBody = await response.json();
+    console.error('Failed to send email:', JSON.stringify(errorBody, null, 2));
   } else {
     console.log(`Successfully sent email to ${options.to}`);
   }

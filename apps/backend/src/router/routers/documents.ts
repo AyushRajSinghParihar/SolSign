@@ -17,7 +17,7 @@ if (!GEMINI_API_KEY) {
   throw new Error("Missing environment variable GEMINI_API_KEY for backend");
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 // Helper function for adding timeouts to promises
 const withTimeout = <T>(
@@ -34,6 +34,7 @@ const withTimeout = <T>(
 export const documentsRouter = t.router({
   /**
    * Creates a new document instance from a template for the user.
+   * Uses supabaseAdmin because creating a document doesn't need RLS check.
    */
   create: protectedProcedure
     .input(
@@ -68,12 +69,15 @@ export const documentsRouter = t.router({
 
   /**
    * Gets a single document by its ID, including its template.
+   * ✅ FIXED: Uses ctx.supabase to enforce RLS
    */
   getById: protectedProcedure
     .input(z.object({ id: z.string().uuid() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const { id } = input;
-      const { data, error } = await supabaseAdmin
+      
+      // ✅ Use ctx.supabase (user client with RLS enforced)
+      const { data, error } = await ctx.supabase
         .from("documents")
         .select(
           `
@@ -84,16 +88,17 @@ export const documentsRouter = t.router({
         .eq("id", id)
         .single();
 
-      if (error) {
+      if (error || !data) {
         console.error(`Error fetching document ${id}:`, error);
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Document not found.",
+          message: "Document not found or you don't have permission to access it.",
         });
       }
+      
       return data;
     }),
-
+  
   /**
    * Uses AI to map a user's vault data to a template's fields.
    */
@@ -196,6 +201,7 @@ export const documentsRouter = t.router({
 
   /**
    * Saves the current filled data of a document.
+   * ✅ FIXED: First checks ownership via RLS, then uses admin to update
    */
   save: protectedProcedure
     .input(
@@ -208,6 +214,29 @@ export const documentsRouter = t.router({
       const { user } = ctx;
       const { documentId, filledData } = input;
 
+      // ✅ First verify user has access via RLS
+      const { data: doc, error: checkError } = await ctx.supabase
+        .from("documents")
+        .select("id, owner_id")
+        .eq("id", documentId)
+        .single();
+
+      if (checkError || !doc) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Document not found or you don't have permission.",
+        });
+      }
+
+      // Verify user is the owner
+      if (doc.owner_id !== user.sub) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the document owner can save changes.",
+        });
+      }
+
+      // Now use admin to update
       const { data, error } = await supabaseAdmin
         .from("documents")
         .update({
@@ -215,7 +244,6 @@ export const documentsRouter = t.router({
           updated_at: new Date().toISOString(),
         })
         .eq("id", documentId)
-        .eq("owner_id", user.sub)
         .select()
         .single();
 
@@ -231,32 +259,35 @@ export const documentsRouter = t.router({
 
   /**
    * Invites a new party to sign a document.
-   * Only the document owner can perform this action.
+   * ✅ FIXED: Verifies ownership via RLS before using admin
    */
   inviteParty: protectedProcedure
     .input(
       z.object({
         documentId: z.string().uuid(),
         email: z.string().email(),
-        wallet: z.string(), // basic string validation via zod; further validation below
+        wallet: z.string(),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx;
       const { documentId, email, wallet } = input;
 
-      // 1. Fetch the document and its current parties
-      const { data: doc, error: docError } = await supabaseAdmin
+      // ✅ First verify user owns the document via RLS
+      const { data: doc, error: docError } = await ctx.supabase
         .from("documents")
-        .select("owner_id, parties")
+        .select("id, owner_id, parties, name")
         .eq("id", documentId)
         .single();
 
       if (docError || !doc) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+        throw new TRPCError({ 
+          code: "NOT_FOUND", 
+          message: "Document not found or you don't have permission." 
+        });
       }
 
-      // 2. Security Check: Ensure the inviter is the document owner
+      // Verify user is the owner
       if (doc.owner_id !== user.sub) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -264,7 +295,7 @@ export const documentsRouter = t.router({
         });
       }
 
-      // 3. Check for duplicates
+      // Check for duplicates
       const parties = (doc.parties as any[]) || [];
       if (parties.some((p) => p.wallet === wallet || p.email === email)) {
         throw new TRPCError({
@@ -273,11 +304,11 @@ export const documentsRouter = t.router({
         });
       }
 
-      // 4. Add the new party (status pending by default)
+      // Add the new party
       const newParty = { wallet, email, status: "pending" };
       const updatedParties = [...parties, newParty];
 
-      // 5. Update the document
+      // Now use admin to update (owner verified above)
       const { data: updatedDocument, error: updateError } = await supabaseAdmin
         .from("documents")
         .update({ parties: updatedParties })
@@ -287,16 +318,22 @@ export const documentsRouter = t.router({
 
       if (updateError) {
         console.error("Error inviting party:", updateError);
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to invite party." });
+        throw new TRPCError({ 
+          code: "INTERNAL_SERVER_ERROR", 
+          message: "Failed to invite party." 
+        });
       }
 
-      const documentUrl = `http://localhost:5173/documents/${documentId}`; // TODO In production, use a real base URL
+      // Send email
+      const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+      const documentUrl = `${frontendUrl}/documents/${documentId}`;
+      
       await sendEmail({
         to: email,
         subject: `You've been invited to sign a document on SolSignAI`,
         html: `
           <h1>Invitation to Sign</h1>
-          <p>You have been invited to sign the document "${updatedDocument.name}".</p>
+          <p>You have been invited to sign the document "${doc.name}".</p>
           <p>Please click the link below to review and sign the document:</p>
           <p><a href="${documentUrl}">View Document</a></p>
           <p>Thank you for using SolSignAI.</p>
@@ -308,7 +345,7 @@ export const documentsRouter = t.router({
 
   /**
    * Records a signature for a document and updates the party's status.
-   * The signer must be in the document's `parties` array.
+   * ✅ FIXED: Verifies access via RLS before using admin
    */
   sign: protectedProcedure
     .input(
@@ -322,27 +359,28 @@ export const documentsRouter = t.router({
       const { documentId, documentHash } = input;
       const signerWallet = user.app_metadata?.wallet_address;
 
-      if (!signerWallet || typeof signerWallet !== "string" || signerWallet.trim() === "") {
+      if (!signerWallet) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "No wallet associated with your user." });
       }
 
-      const { data: doc, error: docError } = await supabaseAdmin
+      // ✅ First verify user has access to this document via RLS
+      const { data: doc, error: docError } = await ctx.supabase
         .from("documents")
-        .select("parties")
+        .select("id, parties, status") // <-- We now also select the `status`
         .eq("id", documentId)
         .single();
 
-      if (docError || !doc) throw new TRPCError({ code: "NOT_FOUND", message: "Document not found." });
+      if (docError || !doc) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Document not found or you don't have permission." });
+      }
 
       const parties = (doc.parties as any[]) || [];
       const partyIndex = parties.findIndex((p) => p.wallet === signerWallet);
 
       if (partyIndex === -1) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "You are not an invited party on this document.",
-        });
+        throw new TRPCError({ code: "FORBIDDEN", message: "You are not an invited party on this document." });
       }
+      
       if (parties[partyIndex].status === "signed") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "You have already signed this document." });
       }
@@ -350,10 +388,18 @@ export const documentsRouter = t.router({
       // Update the party's status
       parties[partyIndex].status = "signed";
 
-      // Update the document with the new parties array
+      let finalStatus = doc.status;
+      const allPartiesSigned = parties.every(p => p.status === 'signed');
+
+      if (allPartiesSigned) {
+        finalStatus = 'signed';
+        console.log(`[LOG] All parties have signed document ${documentId}. Updating status to "signed".`);
+      }
+
+      // Now use admin to update both fields
       const { error: updateError } = await supabaseAdmin
         .from("documents")
-        .update({ parties })
+        .update({ parties, status: finalStatus })
         .eq("id", documentId);
 
       if (updateError) {
@@ -361,26 +407,28 @@ export const documentsRouter = t.router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to update document parties." });
       }
 
-      // Insert the signature record (store wallet instead of internal user id)
-      const { error: insertSigErr } = await supabaseAdmin.from("signatures").insert({
-        document_id: documentId,
-        signer_wallet: signerWallet,
-        signature_hash: documentHash,
-      });
+      // Insert the signature record
+      const { error: insertSigErr } = await supabaseAdmin
+        .from("signatures")
+        .insert({
+          document_id: documentId,
+          signer_wallet: signerWallet,
+          signature_hash: documentHash,
+        });
 
       if (insertSigErr) {
         console.error("Error inserting signature record:", insertSigErr);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to record signature." });
       }
 
-      // Return the updated document
-      const { data: updatedDocument, error: fetchErr } = await supabaseAdmin
+      // Return the updated document using an RLS-enforced query
+      const { data: updatedDocument, error: fetchErr } = await ctx.supabase
         .from("documents")
-        .select()
+        .select('*') // Select all fields to return the full object
         .eq("id", documentId)
         .single();
 
-      if (fetchErr) {
+      if (fetchErr || !updatedDocument) {
         console.error("Error fetching updated document after sign:", fetchErr);
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Failed to fetch updated document." });
       }
@@ -389,19 +437,14 @@ export const documentsRouter = t.router({
     }),
 
   /**
-   * Records a signature for a document and updates its status.
-   * (Legacy single-party sign — kept for backward compatibility)
-   *
-   * NOTE: The new `sign` above replaces the previous single-signer flow.
-   * If you still need an endpoint that writes `signer_id` (user.sub), add a separate route.
+   * Gets all documents for the current user.
+   * ✅ FIXED: Uses ctx.supabase to enforce RLS
    */
-
   getAll: protectedProcedure.query(async ({ ctx }) => {
-    const { user } = ctx;
-    const { data, error } = await supabaseAdmin
+    // ✅ Use ctx.supabase to enforce RLS
+    const { data, error } = await ctx.supabase
       .from("documents")
       .select("*")
-      .eq("owner_id", user.sub)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -414,6 +457,10 @@ export const documentsRouter = t.router({
     return data;
   }),
 
+  /**
+   * Finalizes and mints a document as an NFT.
+   * ✅ FIXED: Verifies ownership via RLS before using admin
+   */
   finalizeAndMint: protectedProcedure
     .input(z.object({ documentId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
@@ -424,38 +471,41 @@ export const documentsRouter = t.router({
         `[LOG] ENTERING finalizeAndMint for doc: ${documentId}, user: ${user.sub}`
       );
 
-      // --- Layer 2: Comprehensive Error Handling ---
-      const { data: document, error: docError } = await supabaseAdmin
+      // ✅ First verify user owns the document via RLS
+      const { data: document, error: docError } = await ctx.supabase
         .from("documents")
         .select(`*, template:templates (*)`)
         .eq("id", documentId)
-        .eq("owner_id", user.sub)
         .single();
 
-      if (docError) {
+      if (docError || !document) {
         console.error(`[LOG] Database error fetching document:`, docError);
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: `Failed to fetch document: ${docError.message}`,
-        });
-      }
-      if (!document) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Document not found or you do not have permission.",
+          message: "Document not found or you don't have permission.",
         });
       }
 
-      // --- NEW: Multi-party validation ---
+      // Verify ownership
+      if (document.owner_id !== user.sub) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the document owner can mint.",
+        });
+      }
+
+      // Validate all parties have signed
       const parties = (document.parties as any[]) || [];
       const allPartiesSigned = parties.length > 0 && parties.every((p) => p.status === "signed");
 
       if (!allPartiesSigned) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Cannot mint document until all parties have signed." });
+        throw new TRPCError({ 
+          code: "BAD_REQUEST", 
+          message: "Cannot mint document until all parties have signed." 
+        });
       }
-      // --- END OF NEW VALIDATION ---
 
-      // --- Layer 3: Updated Data Detection for Both Document Types ---
+      // Validate document has data
       const hasTemplateData = document.filled_data_json && Object.keys(document.filled_data_json).length > 0;
       const hasAiContent = document.content && document.content.length > 0;
 
@@ -466,17 +516,13 @@ export const documentsRouter = t.router({
         });
       }
 
-      // We will wrap each major async operation in its own try/catch block
-      // for progressive error boundaries.
       let finalPdfBuffer: Buffer;
       let arweaveTx: string;
 
       try {
         console.log(`[LOG] [1/5] About to generate PDF...`);
 
-        // --- Layer 4: Conditional PDF Generation Based on Document Type ---
         if (hasTemplateData && document.template) {
-          // Logic for template-based documents (unchanged)
           console.log(
             `[LOG] Template storage path: ${document.template.storage_path}`
           );
@@ -490,22 +536,20 @@ export const documentsRouter = t.router({
               document.template.storage_path,
               document.filled_data_json as Record<string, string>
             ),
-            30000, // 30 second timeout
+            30000,
             "PDF generation timed out."
           );
         } else if (hasAiContent) {
-          // New logic for AI-generated documents
           console.log(
             `[LOG] Generating PDF from AI content, content length: ${document.content!.length}`
           );
 
           finalPdfBuffer = await withTimeout(
             generatePdfFromMarkdown(document.content!),
-            30000, // 30 second timeout
+            30000,
             "PDF generation from Markdown timed out."
           );
         } else {
-          // This should be unreachable due to the validation above, but it's good practice
           throw new Error("Document is in an invalid state with no data to process.");
         }
 
@@ -518,7 +562,6 @@ export const documentsRouter = t.router({
           "SHA-256",
           finalPdfBuffer
         );
-        // Convert the ArrayBuffer to a Uint8Array, which is what our tools expect.
         const documentHash = new Uint8Array(hashBuffer);
         if (!documentHash || documentHash.length === 0) {
           throw new Error(
@@ -528,26 +571,29 @@ export const documentsRouter = t.router({
         console.log(
           `[LOG] [2/5] Hash calculation COMPLETE. Hash: ${Buffer.from(documentHash).toString("hex")}`
         );
+        
         console.log(`[LOG] [3/5] About to upload to Arweave/Irys...`);
         arweaveTx = await withTimeout(
           uploadToArweave(finalPdfBuffer),
-          120000, // 2 minute timeout for blockchain transaction
+          120000,
           "Arweave/Irys upload timed out."
         );
         console.log(
           `[LOG] [3/5] Arweave/Irys upload COMPLETE. TX: ${arweaveTx}`
         );
 
-        // Build the list of PublicKey parties for minting (validate first)
+        // Build the list of PublicKey parties for minting
         let mintParties: PublicKey[] = [];
         try {
           mintParties = parties.map((p) => new PublicKey(p.wallet));
         } catch (pkErr) {
           console.error("[LOG] Invalid wallet in parties for minting:", pkErr);
-          throw new TRPCError({ code: "BAD_REQUEST", message: "One or more party wallet addresses are invalid." });
+          throw new TRPCError({ 
+            code: "BAD_REQUEST", 
+            message: "One or more party wallet addresses are invalid." 
+          });
         }
 
-        // Log the parties we will mint for
         console.log("[LOG] Preparing to mint. Parties:", mintParties.map((k) => k.toBase58()));
 
         console.log("[4/5] Minting DocNFT on Solana...");
@@ -558,13 +604,14 @@ export const documentsRouter = t.router({
             parties: mintParties,
             signedAt: Math.floor(Date.now() / 1000),
           }),
-          120000, // 2 minute timeout
+          120000,
           "Solana NFT minting timed out."
         );
 
         console.log(`[LOG] [4/5] Solana mint COMPLETE. TX: ${solanaTx}`);
 
         console.log(`[LOG] [5/5] About to update database status...`);
+        // Use admin for final updates (ownership already verified)
         await supabaseAdmin
           .from("documents")
           .update({ status: "minted" })

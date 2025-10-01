@@ -62,12 +62,12 @@ export function MintingProgressModal({ state, onClose }: MintingProgressModalPro
                     View Solana Transaction &rarr;
                   </a>
                   <a
-                    href={`https://arweave.net/${state.arweaveTx}`}
+                    href={`https://devnet.irys.xyz/${state.arweaveTx}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm font-medium text-blue-600 hover:underline"
                   >
-                    View on Arweave &rarr;
+                    View on irys &rarr;
                   </a>
                 </div>
               </AlertDescription>

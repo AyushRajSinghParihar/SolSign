@@ -5,10 +5,10 @@ import { Buffer } from "https://deno.land/std@0.177.0/node/buffer.ts";
 // --- CONFIGURATION ---
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
 if (!GEMINI_API_KEY) {
-  throw new Error("Missing environment variable GEMINI_API_KEY");
+  throw new Error  ("Missing environment variable GEMINI_API_KEY");
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 const PROMPT = `
 You are an expert legal document analysis system. Your task is to analyze the provided PDF document and extract key information in a structured JSON format.
