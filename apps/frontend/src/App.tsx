@@ -9,10 +9,11 @@ import { Toaster } from "./components/ui/sonner";
 import { DocumentPage } from "./pages/DocumentPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { GenerateDocumentPage } from "./pages/GenerateDocumentPage";
+import { NegotiationsListPage } from "./pages/NegotiationsListPage";
 
 function App() {
   return (
-    <>
+  <>
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
@@ -30,6 +31,7 @@ function App() {
             <Route path="documents/:id" element={<DocumentPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="documents/generate" element={<GenerateDocumentPage />} />
+            <Route path="negotiations" element={<NegotiationsListPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

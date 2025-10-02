@@ -51,6 +51,18 @@ export function MainLayout() {
           >
             Generate Document
           </NavLink>
+                    <NavLink
+            to="/negotiations"
+            className={({ isActive }) =>
+              cn(
+                'transition-colors hover:text-foreground',
+                isActive ? 'text-foreground' : 'text-muted-foreground',
+              )
+            }
+          >
+            Negotiations
+          </NavLink>
+
           <NavLink to="/profile"
             className={({ isActive }) =>
               cn(

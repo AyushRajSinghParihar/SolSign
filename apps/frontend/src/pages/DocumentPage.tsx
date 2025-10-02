@@ -13,12 +13,14 @@ import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { NegotiationModal } from '@/components/negotiation/NegotiationModal'
 
 export function DocumentPage() {
   const { id } = useParams<{ id: string }>()
   const [document, setDocument] = useState<RouterOutputs['documents']['getById'] | null>(null)
   const [isInviteOpen, setInviteOpen] = useState(false)
   const { user: currentUser } = useAuth()
+  const [isNegotiationModalOpen, setNegotiationModalOpen] = useState(false)
 
   const getDocumentQuery = trpc.documents.getById.useQuery(
     { id: id! },
@@ -135,6 +137,11 @@ export function DocumentPage() {
             {isOwner && !isLocked && (
               <Button onClick={() => setInviteOpen(true)}>Invite Signer</Button>
             )}
+            {isOwner && document.status === 'draft' && (
+                <Button onClick={() => setNegotiationModalOpen(true)}>
+                  Negotiate via AI Agent
+                </Button>
+              )}
 
             {/* Document form */}
             {template && <DocumentForm document={document} template={template} />}
