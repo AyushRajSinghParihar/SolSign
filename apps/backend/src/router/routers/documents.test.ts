@@ -1,13 +1,35 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { FastifyRequest, FastifyReply } from "fastify";
 import { documentsRouter } from "./documents";
-import { mockGenerateContent } from "@google/generative-ai";
+
+// Mock Google AI
+const mockGenerateContent = vi.fn();
+vi.mock("@google/generative-ai", () => ({
+  GoogleGenerativeAI: vi.fn().mockImplementation(() => ({
+    getGenerativeModel: vi.fn().mockReturnValue({
+      generateContent: mockGenerateContent
+    })
+  }))
+}));
 
 // Helper to create a mock context for our tRPC procedures
 const createMockContext = () => ({
+  req: {
+    headers: {},
+    body: {},
+  } as unknown as FastifyRequest,
+  res: {
+    status: vi.fn().mockReturnThis(),
+    send: vi.fn(),
+  } as unknown as FastifyReply,
   user: {
-    sub: "mock-user-uuid-12345", // A fake user ID
-    // ... other user properties if needed
+    sub: "mock-user-uuid-12345",
+    role: "user",
+    app_metadata: {
+      wallet_address: "mock-wallet-address"
+    }
   },
+  supabase: null, // Add mock if needed
 });
 
 describe("documentsRouter", () => {

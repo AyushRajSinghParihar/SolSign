@@ -8,15 +8,16 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@fastify/multipart": "^8.3.0",
+    "@sendgrid/eventwebhook": "^8.0.0",
+    "@supabase/supabase-js": "^2.44.4",
+    "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
     "pino": "^9.5.0",
-    "pino-pretty": "^11.2.1",
-    "@supabase/supabase-js": "^2.44.4",
-    "@sendgrid/eventwebhook": "^8.0.0",
-    "dotenv": "^16.4.5",
-    "@fastify/multipart": "^8.3.0"
+    "pino-pretty": "^11.2.1"
   },
   "devDependencies": {
+    "@types/marked": "^6.0.0",
     "@types/node": "^20.14.13",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"

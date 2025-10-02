@@ -27,7 +27,7 @@ export function DocumentActions({ document, contentToSign, onStatusChange }: Doc
   const finalizeAndMintMutation = trpc.documents.finalizeAndMint.useMutation()
 
   const parties = document.parties || []
-  const currentUserParty = parties.find(p => p.wallet === currentUser?.wallet_address)
+  const currentUserParty = parties.find((p: { wallet?: string; status?: string }) => p.wallet === currentUser?.wallet_address)
   const canSign = Boolean(currentUserParty && currentUserParty.status === 'pending')
   // The condition for minting is now simply checking the document's overall status.
   const canMint = document.status === 'signed'

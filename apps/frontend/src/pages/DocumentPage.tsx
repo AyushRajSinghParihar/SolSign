@@ -25,9 +25,6 @@ export function DocumentPage() {
     {
       enabled: !!id,
       retry: false, // Don't retry if RLS blocks it
-      onSuccess: (data) => {
-        setDocument(data)
-      },
     }
   )
 
@@ -84,7 +81,7 @@ export function DocumentPage() {
   // Additional security check on the frontend
   const isOwner = currentUser?.id === document.owner_id
   const isParty = document.parties?.some(
-    (party: any) => party.wallet === currentUser?.wallet_address
+    (party: { wallet?: string }) => party.wallet === currentUser?.wallet_address
   )
 
   if (!isOwner && !isParty) {
