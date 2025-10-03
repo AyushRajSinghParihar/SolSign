@@ -83,16 +83,22 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       if (action === 'ACCEPT') {
         newStatus = 'agreed';
         // Send confirmation email to both parties
-        await sendEmail({ to: emailData.from?.value, from: `SolSignAI Agent <agent@negotiate.solsignai.com>`, subject: `Agreement Reached`, html: responseText });
-        if (ownerEmail) await sendEmail({ to: ownerEmail, from: `SolSignAI Agent <agent@negotiate.solsignai.com>`, subject: `Agreement Reached for Negotiation ${negotiation.id}`, html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${responseText}` });
+        await sendEmail({ to: emailData.from?.value, from: `SolSignAI Agent <agent@solsignai.com>`, subject: `Agreement Reached`, html: responseText });
+        if (ownerEmail) await sendEmail({ to: ownerEmail, from: `SolSignAI Agent <agent@solsignai.com>`, subject: `Agreement Reached for Negotiation ${negotiation.id}`, html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${responseText}` });
       } else if (action === 'COUNTER-PROPOSE') {
         newStatus = 'in_progress';
-        // Send counter-proposal email to counterparty
-        await sendEmail({ to: emailData.from?.value, from: `SolSignAI Agent <agent@negotiate.solsignai.com>`, subject: `Re: ${emailData.subject?.value}`, html: responseText, headers: { 'Reply-To': uniqueReplyToAddress } });
+        // Send counter-proposal email to counterparty with reply-to address
+        await sendEmail({ 
+          to: emailData.from?.value, 
+          from: `SolSignAI Agent <agent@solsignai.com>`, 
+          subject: `Re: ${emailData.subject?.value}`, 
+          html: responseText, 
+          replyTo: uniqueReplyToAddress 
+        });
       } else if (action === 'ESCALATE') {
         newStatus = 'escalated';
         // Send escalation email to the original user (owner)
-        if (ownerEmail) await sendEmail({ to: ownerEmail, from: `SolSignAI Agent <agent@negotiate.solsignai.com>`, subject: `Action Required: Negotiation Escalated`, html: `The negotiation requires your input. The agent's summary is: <br/><br/>${responseText}` });
+        if (ownerEmail) await sendEmail({ to: ownerEmail, from: `SolSignAI Agent <agent@solsignai.com>`, subject: `Action Required: Negotiation Escalated`, html: `The negotiation requires your input. The agent's summary is: <br/><br/>${responseText}` });
       }
 
       // 8. Update negotiation status and history with the agent's action

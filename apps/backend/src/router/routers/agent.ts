@@ -48,6 +48,8 @@ export const agentRouter = t.router({
       }
 
       // 3. Create the negotiation record with status 'pending_initiation'
+      console.log('[DEBUG] Creating negotiation with parameters:', JSON.stringify(parameters, null, 2));
+      
       const { data: negotiation, error: negError } = await supabaseAdmin
         .from('negotiations')
         .insert({
@@ -69,7 +71,32 @@ export const agentRouter = t.router({
         throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to create negotiation record.' });
       }
 
-      console.log(`[LOG] Negotiation ${negotiation.id} created. Status: pending_initiation. Agent will be triggered.`);
+      console.log(`[LOG] Negotiation ${negotiation.id} created. Status: pending_initiation. Triggering agent...`);
+      console.log('[DEBUG] Negotiation parameters after DB insert:', JSON.stringify(negotiation.parameters, null, 2));
+
+      // 4. Trigger the agent-backend to send the initial email
+      try {
+        const agentBackendUrl = process.env.AGENT_BACKEND_URL || 'http://localhost:3002';
+        const response = await fetch(`${agentBackendUrl}/jobs/start-negotiation`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.SUPABASE_WEBHOOK_SECRET}`,
+          },
+          body: JSON.stringify({ record: negotiation }),
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to trigger agent-backend: ${response.status} ${response.statusText}`);
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to trigger negotiation agent.' });
+        }
+
+        console.log(`[LOG] Agent-backend triggered successfully for negotiation ${negotiation.id}`);
+      } catch (error) {
+        console.error("Error triggering agent-backend:", error);
+        throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Failed to trigger negotiation agent.' });
+      }
+
       return negotiation;
     }),
 
