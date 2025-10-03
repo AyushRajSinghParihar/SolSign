@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { logger } from './config/logger.js';
 import healthRoutes from './routes/health.js';
 import webhookRoutes from './routes/webhooks.js';
+import jobRoutes from './routes/jobs.js';
 
 const fastify = Fastify({
   logger: logger,
@@ -20,10 +21,11 @@ fastify.decorate('supabase', supabase);
 
 await fastify.register(healthRoutes);
 await fastify.register(webhookRoutes, { prefix: '/webhooks' });
+await fastify.register(jobRoutes, { prefix: '/jobs' });
 
 const start = async () => {
   try {
-    const port = parseInt(process.env.PORT || '3001'); // Use a different default port
+    const port = parseInt(process.env.PORT || '3002'); // Use a different default port
     const host = process.env.HOST || '0.0.0.0';
     
     await fastify.listen({ port, host });

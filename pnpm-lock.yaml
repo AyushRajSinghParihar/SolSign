@@ -60,6 +60,9 @@ importers:
       '@fastify/multipart':
         specifier: ^8.3.0
         version: 8.3.1
+      '@google/generative-ai':
+        specifier: ^0.24.1
+        version: 0.24.1
       '@sendgrid/eventwebhook':
         specifier: ^8.0.0
         version: 8.0.0

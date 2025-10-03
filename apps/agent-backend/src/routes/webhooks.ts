@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import multipart from '@fastify/multipart';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { sendEmail } from '../services/email-service.js';
 
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {

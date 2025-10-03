@@ -133,15 +133,16 @@ export function DocumentPage() {
 
             {/* Party list and invite button */}
             <PartyList parties={document.parties} />
-            {/* Only show the Invite button if you are the owner AND the document is not yet locked. */}
-            {isOwner && !isLocked && (
-              <Button onClick={() => setInviteOpen(true)}>Invite Signer</Button>
-            )}
-            {isOwner && document.status === 'draft' && (
-                <Button onClick={() => setNegotiationModalOpen(true)}>
-                  Negotiate via AI Agent
-                </Button>
+            <div className="flex flex-wrap gap-4"> {/* Use flex-wrap for better responsiveness */}
+              {isOwner && !isLocked && (
+                <Button variant="outline" onClick={() => setInviteOpen(true)}>Invite Signer</Button>
               )}
+              {isOwner && document.status === 'draft' && (
+                  <Button onClick={() => setNegotiationModalOpen(true)}>
+                    Negotiate via AI Agent
+                  </Button>
+                )}
+            </div>
 
             {/* Document form */}
             {template && <DocumentForm document={document} template={template} />}
@@ -155,6 +156,12 @@ export function DocumentPage() {
           onStatusChange={setDocument}
         />
       </div>
+
+      <NegotiationModal
+        documentId={document.id}
+        isOpen={isNegotiationModalOpen}
+        onOpenChange={setNegotiationModalOpen}
+      />
 
       <InviteDialog
         documentId={document.id}
