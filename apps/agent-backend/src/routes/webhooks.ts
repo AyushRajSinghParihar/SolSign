@@ -174,7 +174,7 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
         throw new Error('Failed to update negotiation history');
       }
       log.info({ durMs: durationMs(histStart) }, 'History updated');
-      //test comment for commit
+
       // 6) GEMINI DECISION 
       const llmStart = performance.now();
       const geminiPrompt = `
@@ -197,7 +197,11 @@ Respond ONLY with a valid JSON object in the format:
       const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(geminiPrompt);
       const raw = result.response.text();
-      const cleaned = raw.replace(/``````/g, '').trim();
+      // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+      const cleaned = raw
+        .replace(/^```(?:json)?\s*/i, '')  // Remove opening ```json or ```
+        .replace(/\s*```\s*$/i, '')         // Remove closing ```
+        .trim();
 
       let aiResponse: { action: 'ACCEPT'|'COUNTER-PROPOSE'|'ESCALATE', responseText: string };
       try {
