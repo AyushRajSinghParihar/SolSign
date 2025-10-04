@@ -93,7 +93,7 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
       
       await sendEmail({
         to: negotiation.counterparty_email,
-        from: `SolSignAI Agent <agent@solsignai.com>`,
+        from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
         subject: `Action Required: Document Negotiation for "${document.name}"`,
         html: emailHtml,
         replyTo: uniqueReplyToAddress,

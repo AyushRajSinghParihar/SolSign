@@ -234,14 +234,14 @@ Respond ONLY with a valid JSON object in the format:
           newStatus = 'agreed';
           await sendEmail({
             to: fromEmail,
-            from: `SolSignAI Agent <agent@solsignai.com>`,
+            from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
             subject: `Agreement Reached`,
             html: emailResponseText
           });
           if (ownerEmail) {
             await sendEmail({
               to: ownerEmail,
-              from: `SolSignAI Agent <agent@solsignai.com>`,
+              from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
               subject: `Agreement Reached for Negotiation ${negotiation.id}`,
               html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${emailResponseText}`
             });
@@ -250,7 +250,7 @@ Respond ONLY with a valid JSON object in the format:
           newStatus = 'in_progress';
           await sendEmail({
             to: fromEmail,
-            from: `SolSignAI Agent <agent@solsignai.com>`,
+            from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
             subject: `Re: ${subjectText}`,
             html: emailResponseText,
             replyTo: uniqueReplyToAddress
@@ -260,7 +260,7 @@ Respond ONLY with a valid JSON object in the format:
           if (ownerEmail) {
             await sendEmail({
               to: ownerEmail,
-              from: `SolSignAI Agent <agent@solsignai.com>`,
+              from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
               subject: `Action Required: Negotiation Escalated`,
               html: `The negotiation requires your input. The agent's summary is: <br/><br/>${emailResponseText}`
             });
