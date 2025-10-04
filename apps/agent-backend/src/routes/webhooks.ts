@@ -1,15 +1,32 @@
 import { FastifyPluginAsync } from 'fastify';
 import multipart from '@fastify/multipart';
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendEmail } from '../services/email-service.js';
+import { createClient } from '@supabase/supabase-js';
 
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {
-  // Register multipart to handle the form-data payload from SendGrid
-  await fastify.register(multipart, { attachFieldsToBody: true });
+  await fastify.register(multipart, { 
+    attachFieldsToBody: true,
+    limits: {
+      fileSize: 10 * 1024 * 1024 // 10MB limit
+    }
+  });
+
+  // Create service role client to bypass RLS
+  const supabaseServiceRole = createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    }
+  );
 
   fastify.post('/email-inbound', async (request, reply) => {
     try {
-      // 1. Authenticate the request using the URL secret
+      // 1. Authenticate the request
       const { secret } = request.query as { secret: string };
       if (secret !== process.env.INBOUND_PARSE_SECRET) {
         fastify.log.warn('Invalid or missing secret for Inbound Parse webhook.');
@@ -17,10 +34,16 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const emailData = request.body as any;
-      fastify.log.info({ from: emailData.from?.value, subject: emailData.subject?.value }, 'Processing inbound email...');
+      
+      // FIX: Properly extract values from multipart fields
+      const fromEmail = emailData.from?.value || emailData.from;
+      const subjectText = emailData.subject?.value || emailData.subject;
+      const toAddress = emailData.to?.value || emailData.to;
+      const emailText = emailData.text?.value || emailData.html?.value || emailData.text || emailData.html || '';
+      
+      fastify.log.info({ from: fromEmail, subject: subjectText }, 'Processing inbound email...');
 
       // 2. Extract the Negotiation ID from the 'to' address
-      const toAddress = emailData.to?.value || '';
       const match = toAddress.match(/neg-([a-f0-9-]+)@/);
       const negotiationId = match ? match[1] : null;
 
@@ -30,48 +53,57 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       }
       fastify.log.info(`Email successfully routed to negotiation ID: ${negotiationId}`);
 
-      // 3. Fetch the full negotiation record from the database
-      const { data: negotiation, error: negError } = await fastify.supabase
+      // 3. Fetch the negotiation using SERVICE ROLE to bypass RLS
+      const { data: negotiation, error: negError } = await supabaseServiceRole
         .from('negotiations')
-        .select('*, owner:users(email)') // Also fetch the owner's email for escalations
+        .select('*, owner:users(email)')
         .eq('id', negotiationId)
         .single();
 
       if (negError || !negotiation) {
+        fastify.log.error({ negotiationId, error: negError }, 'Negotiation not found');
         throw new Error(`Negotiation ${negotiationId} not found. Error: ${negError?.message}`);
       }
 
       // 4. Append the new inbound email to the history
       const newHistoryEntry = {
         role: 'counterparty',
-        content: emailData.text?.value || emailData.html?.value || '',
+        content: emailText,
         timestamp: new Date().toISOString(),
       };
-      const updatedHistory = [...negotiation.history, newHistoryEntry];
-      await fastify.supabase.from('negotiations').update({ history: updatedHistory }).eq('id', negotiationId);
+      const updatedHistory = [...(negotiation.history || []), newHistoryEntry];
+      
+      await supabaseServiceRole
+        .from('negotiations')
+        .update({ history: updatedHistory })
+        .eq('id', negotiationId);
 
       // 5. Construct the Gemini Prompt
       const geminiPrompt = `
-        You are an AI contract negotiation agent.
-        Your user's goals are: ${JSON.stringify(negotiation.parameters)}
-        The full conversation history is: ${JSON.stringify(updatedHistory)}
-        The latest message from the counterparty is: "${newHistoryEntry.content}"
+You are an AI contract negotiation agent.
+Your user's goals are: ${JSON.stringify(negotiation.parameters)}
+The full conversation history is: ${JSON.stringify(updatedHistory)}
+The latest message from the counterparty is: "${newHistoryEntry.content}"
 
-        Analyze the latest message in the context of the user's goals and the entire conversation.
-        Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
-        - ACCEPT: Use if the counterparty agrees to all of the user's key terms.
-        - COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question.
-        - ESCALATE: Use if you are unsure, the request is outside your parameters, or if the counterparty is hostile.
+Analyze the latest message in the context of the user's goals and the entire conversation.
+Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
+- ACCEPT: Use if the counterparty agrees to all of the user's key terms.
+- COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question.
+- ESCALATE: Use if you are unsure, the request is outside your parameters, or if the counterparty is hostile.
 
-        You must also generate the text for the next email to send.
-        Respond ONLY with a valid JSON object in the format: {"action": "ACTION_TYPE", "responseText": "The text for the next email."}
-      `;
+You must also generate the text for the next email to send.
+Respond ONLY with a valid JSON object in the format: {"action": "ACTION_TYPE", "responseText": "The text for the next email."}
+      `.trim();
       
       // 6. Call Gemini to get the next action
-      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ 
+        model: 'gemini-1.5-flash' 
+      });
       const result = await model.generateContent(geminiPrompt);
-      const aiResponse = JSON.parse(result.response.text().replace(/```json\n|```/g, '').trim());
-      const { action, responseText } = aiResponse;
+      const responseText = result.response.text();
+      const cleanedResponse = responseText.replace(/``````\n?/g, '').trim();
+      const aiResponse = JSON.parse(cleanedResponse);
+      const { action, responseText: emailResponseText } = aiResponse;
 
       fastify.log.info({ negotiationId, action }, 'AI has decided on the next action.');
 
@@ -82,33 +114,68 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (action === 'ACCEPT') {
         newStatus = 'agreed';
-        // Send confirmation email to both parties
-        await sendEmail({ to: emailData.from?.value, from: `SolSignAI Agent <agent@solsignai.com>`, subject: `Agreement Reached`, html: responseText });
-        if (ownerEmail) await sendEmail({ to: ownerEmail, from: `SolSignAI Agent <agent@solsignai.com>`, subject: `Agreement Reached for Negotiation ${negotiation.id}`, html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${responseText}` });
+        // FIX: Await email sending
+        await sendEmail({ 
+          to: fromEmail, 
+          from: `SolSignAI Agent <agent@solsignai.com>`, 
+          subject: `Agreement Reached`, 
+          html: emailResponseText 
+        });
+        if (ownerEmail) {
+          await sendEmail({ 
+            to: ownerEmail, 
+            from: `SolSignAI Agent <agent@solsignai.com>`, 
+            subject: `Agreement Reached for Negotiation ${negotiation.id}`, 
+            html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${emailResponseText}` 
+          });
+        }
       } else if (action === 'COUNTER-PROPOSE') {
         newStatus = 'in_progress';
-        // Send counter-proposal email to counterparty with reply-to address
         await sendEmail({ 
-          to: emailData.from?.value, 
+          to: fromEmail, 
           from: `SolSignAI Agent <agent@solsignai.com>`, 
-          subject: `Re: ${emailData.subject?.value}`, 
-          html: responseText, 
+          subject: `Re: ${subjectText}`, 
+          html: emailResponseText, 
           replyTo: uniqueReplyToAddress 
         });
       } else if (action === 'ESCALATE') {
         newStatus = 'escalated';
-        // Send escalation email to the original user (owner)
-        if (ownerEmail) await sendEmail({ to: ownerEmail, from: `SolSignAI Agent <agent@solsignai.com>`, subject: `Action Required: Negotiation Escalated`, html: `The negotiation requires your input. The agent's summary is: <br/><br/>${responseText}` });
+        if (ownerEmail) {
+          await sendEmail({ 
+            to: ownerEmail, 
+            from: `SolSignAI Agent <agent@solsignai.com>`, 
+            subject: `Action Required: Negotiation Escalated`, 
+            html: `The negotiation requires your input. The agent's summary is: <br/><br/>${emailResponseText}` 
+          });
+        }
       }
 
-      // 8. Update negotiation status and history with the agent's action
-      const finalHistory = [...updatedHistory, { role: 'agent', content: responseText, timestamp: new Date().toISOString() }];
-      await fastify.supabase.from('negotiations').update({ status: newStatus, history: finalHistory }).eq('id', negotiationId);
+      // 8. Update negotiation status and history
+      const finalHistory = [
+        ...updatedHistory, 
+        { 
+          role: 'agent', 
+          content: emailResponseText, 
+          timestamp: new Date().toISOString() 
+        }
+      ];
+      
+      await supabaseServiceRole
+        .from('negotiations')
+        .update({ 
+          status: newStatus, 
+          history: finalHistory 
+        })
+        .eq('id', negotiationId);
 
       return reply.code(200).send({ success: true });
+      
     } catch (error) {
       fastify.log.error({ error }, 'Webhook handler processing error');
-      return reply.code(500).send({ error: 'Internal error.' });
+      return reply.code(500).send({ 
+        error: 'Internal error.',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 };
