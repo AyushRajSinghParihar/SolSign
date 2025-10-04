@@ -1,84 +1,182 @@
+// apps/agent-backend/src/routes/webhook.ts
 import { FastifyPluginAsync } from 'fastify';
 import multipart from '@fastify/multipart';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendEmail } from '../services/email-service.js';
 import { createClient } from '@supabase/supabase-js';
 
+type AnyObj = Record<string, any>;
+
+function truncate(str: string, max = 2000) {
+  if (!str) return '';
+  return str.length > max ? `${str.slice(0, max)}…[truncated ${str.length - max}]` : str;
+}
+
+function durationMs(start: number) {
+  return Math.round(performance.now() - start);
+}
+
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {
-  await fastify.register(multipart, { 
-    attachFieldsToBody: true,
-    limits: {
-      fileSize: 10 * 1024 * 1024 // 10MB limit
-    }
+  // Local error hook: logs after error handler if an error is sent to user
+  fastify.addHook('onError', async (request, reply, error) => {
+    const log = request.log.child({ route: 'email-inbound', hook: 'onError', reqId: request.id });
+    log.error({
+      err: { msg: error.message, stack: error.stack },
+      statusCode: reply.statusCode,
+    }, 'Unhandled error in webhook route');
   });
+
+  await fastify.register(multipart, {
+    attachFieldsToBody: true,
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB
+  });
+
+  // Validate env without logging secrets
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKeyExists = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const geminiKeyExists = Boolean(process.env.GEMINI_API_KEY);
+  const inboundSecretExists = Boolean(process.env.INBOUND_PARSE_SECRET);
 
   // Create service role client to bypass RLS
   const supabaseServiceRole = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!, // Use service role key
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    }
+    supabaseUrl!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
   fastify.post('/email-inbound', async (request, reply) => {
+    const baseLog = request.log.child({
+      route: 'email-inbound',
+      reqId: request.id,
+      ip: request.ip,
+    });
+
+    const started = performance.now();
     try {
-      // 1. Authenticate the request
-      const { secret } = request.query as { secret: string };
-      if (secret !== process.env.INBOUND_PARSE_SECRET) {
-        fastify.log.warn('Invalid or missing secret for Inbound Parse webhook.');
+      // High-level request metadata (no secrets)
+      baseLog.info({
+        hdr: {
+          'content-type': request.headers['content-type'],
+          'content-length': request.headers['content-length'],
+          'user-agent': request.headers['user-agent'],
+        },
+        env: {
+          SUPABASE_URL: Boolean(supabaseUrl),
+          SUPABASE_SERVICE_ROLE_KEY_present: supabaseKeyExists,
+          GEMINI_API_KEY_present: geminiKeyExists,
+          INBOUND_PARSE_SECRET_present: inboundSecretExists,
+        },
+      }, 'Webhook request received');
+
+      // 1) AUTH
+      const authStart = performance.now();
+      const { secret } = request.query as { secret?: string };
+      if (!secret || secret !== process.env.INBOUND_PARSE_SECRET) {
+        baseLog.warn({
+          durMs: durationMs(authStart),
+          providedSecret: Boolean(secret),
+        }, 'Auth failed: invalid or missing secret');
         return reply.code(403).send({ error: 'Forbidden.' });
       }
+      baseLog.info({ durMs: durationMs(authStart) }, 'Auth successful');
 
-      const emailData = request.body as any;
-      
-      // FIX: Properly extract values from multipart fields
-      const fromEmail = emailData.from?.value || emailData.from;
-      const subjectText = emailData.subject?.value || emailData.subject;
-      const toAddress = emailData.to?.value || emailData.to;
-      const emailText = emailData.text?.value || emailData.html?.value || emailData.text || emailData.html || '';
-      
-      fastify.log.info({ from: fromEmail, subject: subjectText }, 'Processing inbound email...');
+      // 2) PARSE INBOUND
+      const parseStart = performance.now();
+      const emailData = request.body as AnyObj;
 
-      // 2. Extract the Negotiation ID from the 'to' address
-      const match = toAddress.match(/neg-([a-f0-9-]+)@/);
+      const fromEmail = emailData?.from?.value ?? emailData?.from ?? '';
+      const subjectText = emailData?.subject?.value ?? emailData?.subject ?? '';
+      const toAddress = emailData?.to?.value ?? emailData?.to ?? '';
+      const textVal = emailData?.text?.value ?? emailData?.text ?? '';
+      const htmlVal = emailData?.html?.value ?? emailData?.html ?? '';
+      const emailText = textVal || htmlVal || '';
+
+      baseLog.info({
+        durMs: durationMs(parseStart),
+        fieldsPresent: {
+          from: Boolean(fromEmail),
+          to: Boolean(toAddress),
+          subject: Boolean(subjectText),
+          textLen: typeof textVal === 'string' ? textVal.length : 0,
+          htmlLen: typeof htmlVal === 'string' ? htmlVal.length : 0,
+        },
+      }, 'Parsed inbound multipart fields');
+
+      // 3) EXTRACT NEGOTIATION ID
+      const idStart = performance.now();
+      const match = typeof toAddress === 'string' ? toAddress.match(/neg-([a-f0-9-]+)@/) : null;
       const negotiationId = match ? match[1] : null;
 
       if (!negotiationId) {
-        fastify.log.error({ toAddress }, 'Could not parse negotiation ID from "to" address.');
-        return reply.code(200).send({ success: true, message: "Ignored: Could not identify negotiation." });
+        baseLog.error({
+          durMs: durationMs(idStart),
+          toAddressSample: truncate(String(toAddress), 256),
+        }, 'Could not parse negotiationId from "to" address');
+        return reply.code(200).send({ success: true, message: 'Ignored: Could not identify negotiation.' });
       }
-      fastify.log.info(`Email successfully routed to negotiation ID: ${negotiationId}`);
 
-      // 3. Fetch the negotiation using SERVICE ROLE to bypass RLS
-      const { data: negotiation, error: negError } = await supabaseServiceRole
+      const log = baseLog.child({ negotiationId });
+      log.info({ durMs: durationMs(idStart), fromEmail, subjectText }, 'Routed to negotiation');
+
+      // 4) FETCH NEGOTIATION
+      const fetchStart = performance.now();
+      const { data: negotiation, error: negError, status: negStatus } = await supabaseServiceRole
         .from('negotiations')
         .select('*, owner:users(email)')
         .eq('id', negotiationId)
         .single();
 
       if (negError || !negotiation) {
-        fastify.log.error({ negotiationId, error: negError }, 'Negotiation not found');
-        throw new Error(`Negotiation ${negotiationId} not found. Error: ${negError?.message}`);
+        log.error({
+          durMs: durationMs(fetchStart),
+          supabaseStatus: negStatus,
+          supabaseError: negError ? {
+            message: negError.message,
+            details: (negError as any).details,
+            hint: (negError as any).hint,
+            code: (negError as any).code,
+          } : null,
+        }, 'Negotiation fetch failed');
+        throw new Error(`Negotiation ${negotiationId} not found or inaccessible`);
       }
+      log.info({
+        durMs: durationMs(fetchStart),
+        status: negotiation.status,
+        ownerEmailPresent: Boolean((negotiation as any)?.owner?.email),
+        historyCount: Array.isArray(negotiation.history) ? negotiation.history.length : 0,
+      }, 'Negotiation fetched');
 
-      // 4. Append the new inbound email to the history
+      // 5) APPEND HISTORY
+      const histStart = performance.now();
       const newHistoryEntry = {
         role: 'counterparty',
         content: emailText,
         timestamp: new Date().toISOString(),
       };
       const updatedHistory = [...(negotiation.history || []), newHistoryEntry];
-      
-      await supabaseServiceRole
+
+      const { error: histError, status: histStatus } = await supabaseServiceRole
         .from('negotiations')
         .update({ history: updatedHistory })
         .eq('id', negotiationId);
 
-      // 5. Construct the Gemini Prompt
+      if (histError) {
+        log.error({
+          durMs: durationMs(histStart),
+          supabaseStatus: histStatus,
+          supabaseError: {
+            message: histError.message,
+            details: (histError as any).details,
+            hint: (histError as any).hint,
+            code: (histError as any).code,
+          },
+        }, 'Failed to update history');
+        throw new Error('Failed to update negotiation history');
+      }
+      log.info({ durMs: durationMs(histStart) }, 'History updated');
+
+      // 6) GEMINI DECISION
+      const llmStart = performance.now();
       const geminiPrompt = `
 You are an AI contract negotiation agent.
 Your user's goals are: ${JSON.stringify(negotiation.parameters)}
@@ -92,89 +190,132 @@ Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or E
 - ESCALATE: Use if you are unsure, the request is outside your parameters, or if the counterparty is hostile.
 
 You must also generate the text for the next email to send.
-Respond ONLY with a valid JSON object in the format: {"action": "ACTION_TYPE", "responseText": "The text for the next email."}
-      `.trim();
-      
-      // 6. Call Gemini to get the next action
-      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ 
-        model: 'gemini-1.5-flash' 
-      });
+Respond ONLY with a valid JSON object in the format:
+{"action": "ACTION_TYPE", "responseText": "The text for the next email."}
+`.trim();
+
+      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ model: 'gemini-1.5-flash' });
       const result = await model.generateContent(geminiPrompt);
-      const responseText = result.response.text();
-      const cleanedResponse = responseText.replace(/``````\n?/g, '').trim();
-      const aiResponse = JSON.parse(cleanedResponse);
+      const raw = result.response.text();
+      const cleaned = raw.replace(/``````/g, '').trim();
+
+      let aiResponse: { action: 'ACCEPT'|'COUNTER-PROPOSE'|'ESCALATE', responseText: string };
+      try {
+        aiResponse = JSON.parse(cleaned);
+      } catch (e) {
+        log.error({
+          durMs: durationMs(llmStart),
+          rawSample: truncate(raw, 1000),
+          cleanedSample: truncate(cleaned, 1000),
+          parseErr: (e as Error)?.message,
+        }, 'Gemini JSON parse failed');
+        throw new Error('Gemini returned non-JSON response');
+      }
+
       const { action, responseText: emailResponseText } = aiResponse;
+      log.info({
+        durMs: durationMs(llmStart),
+        action,
+        responseTextLen: emailResponseText?.length || 0,
+      }, 'Gemini decision computed');
 
-      fastify.log.info({ negotiationId, action }, 'AI has decided on the next action.');
-
-      // 7. Execute the Action
+      // 7) EXECUTE ACTION (send emails)
+      const actionStart = performance.now();
       let newStatus = negotiation.status;
       const uniqueReplyToAddress = `neg-${negotiation.id}@negotiate.solsignai.com`;
       const ownerEmail = (negotiation.owner as any)?.email;
 
-      if (action === 'ACCEPT') {
-        newStatus = 'agreed';
-        // FIX: Await email sending
-        await sendEmail({ 
-          to: fromEmail, 
-          from: `SolSignAI Agent <agent@solsignai.com>`, 
-          subject: `Agreement Reached`, 
-          html: emailResponseText 
-        });
-        if (ownerEmail) {
-          await sendEmail({ 
-            to: ownerEmail, 
-            from: `SolSignAI Agent <agent@solsignai.com>`, 
-            subject: `Agreement Reached for Negotiation ${negotiation.id}`, 
-            html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${emailResponseText}` 
+      try {
+        if (action === 'ACCEPT') {
+          newStatus = 'agreed';
+          await sendEmail({
+            to: fromEmail,
+            from: `SolSignAI Agent <agent@solsignai.com>`,
+            subject: `Agreement Reached`,
+            html: emailResponseText
           });
-        }
-      } else if (action === 'COUNTER-PROPOSE') {
-        newStatus = 'in_progress';
-        await sendEmail({ 
-          to: fromEmail, 
-          from: `SolSignAI Agent <agent@solsignai.com>`, 
-          subject: `Re: ${subjectText}`, 
-          html: emailResponseText, 
-          replyTo: uniqueReplyToAddress 
-        });
-      } else if (action === 'ESCALATE') {
-        newStatus = 'escalated';
-        if (ownerEmail) {
-          await sendEmail({ 
-            to: ownerEmail, 
-            from: `SolSignAI Agent <agent@solsignai.com>`, 
-            subject: `Action Required: Negotiation Escalated`, 
-            html: `The negotiation requires your input. The agent's summary is: <br/><br/>${emailResponseText}` 
+          if (ownerEmail) {
+            await sendEmail({
+              to: ownerEmail,
+              from: `SolSignAI Agent <agent@solsignai.com>`,
+              subject: `Agreement Reached for Negotiation ${negotiation.id}`,
+              html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${emailResponseText}`
+            });
+          }
+        } else if (action === 'COUNTER-PROPOSE') {
+          newStatus = 'in_progress';
+          await sendEmail({
+            to: fromEmail,
+            from: `SolSignAI Agent <agent@solsignai.com>`,
+            subject: `Re: ${subjectText}`,
+            html: emailResponseText,
+            replyTo: uniqueReplyToAddress
           });
+        } else if (action === 'ESCALATE') {
+          newStatus = 'escalated';
+          if (ownerEmail) {
+            await sendEmail({
+              to: ownerEmail,
+              from: `SolSignAI Agent <agent@solsignai.com>`,
+              subject: `Action Required: Negotiation Escalated`,
+              html: `The negotiation requires your input. The agent's summary is: <br/><br/>${emailResponseText}`
+            });
+          }
         }
+        log.info({
+          durMs: durationMs(actionStart),
+          newStatus,
+          ownerEmailPresent: Boolean(ownerEmail),
+        }, 'Emails sent and action executed');
+      } catch (mailErr) {
+        log.error({
+          durMs: durationMs(actionStart),
+          err: { msg: (mailErr as Error)?.message, stack: (mailErr as Error)?.stack },
+          action,
+        }, 'sendEmail failed');
+        throw new Error('Email dispatch failed');
       }
 
-      // 8. Update negotiation status and history
+      // 8) FINAL STATUS + HISTORY APPEND
+      const finalStart = performance.now();
       const finalHistory = [
-        ...updatedHistory, 
-        { 
-          role: 'agent', 
-          content: emailResponseText, 
-          timestamp: new Date().toISOString() 
-        }
+        ...updatedHistory,
+        { role: 'agent', content: emailResponseText, timestamp: new Date().toISOString() }
       ];
-      
-      await supabaseServiceRole
+
+      const { error: finalErr, status: finalStatus } = await supabaseServiceRole
         .from('negotiations')
-        .update({ 
-          status: newStatus, 
-          history: finalHistory 
-        })
+        .update({ status: newStatus, history: finalHistory })
         .eq('id', negotiationId);
 
+      if (finalErr) {
+        log.error({
+          durMs: durationMs(finalStart),
+          supabaseStatus: finalStatus,
+          supabaseError: {
+            message: finalErr.message,
+            details: (finalErr as any).details,
+            hint: (finalErr as any).hint,
+            code: (finalErr as any).code,
+          },
+        }, 'Failed to persist final status/history');
+        throw new Error('Failed to persist final status/history');
+      }
+
+      log.info({
+        durMs: durationMs(finalStart),
+        totalDurMs: durationMs(started),
+      }, 'Webhook completed successfully');
+
       return reply.code(200).send({ success: true });
-      
     } catch (error) {
-      fastify.log.error({ error }, 'Webhook handler processing error');
-      return reply.code(500).send({ 
+      baseLog.error({
+        err: { msg: (error as Error)?.message, stack: (error as Error)?.stack },
+        totalDurMs: durationMs(started),
+      }, 'Webhook handler processing error');
+      return reply.code(500).send({
         error: 'Internal error.',
-        message: error instanceof Error ? error.message : 'Unknown error'
+        message: (error as Error)?.message || 'Unknown error',
       });
     }
   });
