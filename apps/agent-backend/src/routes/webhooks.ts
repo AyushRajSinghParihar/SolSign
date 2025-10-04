@@ -174,8 +174,8 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
         throw new Error('Failed to update negotiation history');
       }
       log.info({ durMs: durationMs(histStart) }, 'History updated');
-
-      // 6) GEMINI DECISION
+      //test comment for commit
+      // 6) GEMINI DECISION 
       const llmStart = performance.now();
       const geminiPrompt = `
 You are an AI contract negotiation agent.
