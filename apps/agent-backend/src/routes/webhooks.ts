@@ -195,7 +195,7 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 6) GEMINI DECISION 
       const llmStart = performance.now();
-      // Section 6: GEMINI DECISION (Updated)
+      // Section 6: GEMINI DECISION (Updated to be generic)
       const geminiPrompt = `
 
 You are an AI contract negotiation agent.
@@ -210,24 +210,20 @@ The full conversation history is:
 
 Analyze the latest message in the context of the user's goals and the entire conversation.
 
-CRITICAL: Your user has set these non-negotiable minimum terms:
-- Minimum price: $5,000
-- Payment terms: 15 days or less
-
-You MUST NOT accept any offer below $5,000 or with payment terms longer than 15 days.
-
-Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
+CRITICAL: Your user has set specific parameters for this negotiation. These parameters represent their requirements and constraints. You MUST respect these parameters at all times.
 
  ${senderRole === 'owner'
   ? `Since this is an instruction from the owner, follow their guidance and respond accordingly.`
   : `This is a message from the counterparty.`
 }
 
-ACCEPT: Use ONLY if the counterparty agrees to ALL of the user's key terms (minimum $5,000 and payment terms of 15 days or less).
+Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
 
-COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question. Always maintain the minimum terms specified by the owner.
+ACCEPT: Use ONLY if the counterparty agrees to ALL of the user's key parameters and requirements.
 
-ESCALATE: Use if the counterparty is hostile, unwilling to meet the minimum terms, or if you're unsure how to proceed.
+COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question. Always maintain the user's key parameters and requirements.
+
+ESCALATE: Use if the counterparty is hostile, unwilling to meet the user's requirements, or if you're unsure how to proceed.
 
 You must also generate the text for the next email to send.
 Respond ONLY with a valid JSON object in the format:
