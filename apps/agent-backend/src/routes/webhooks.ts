@@ -195,28 +195,39 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
 
       // 6) GEMINI DECISION 
       const llmStart = performance.now();
+      // Section 6: GEMINI DECISION (Updated)
       const geminiPrompt = `
+
 You are an AI contract negotiation agent.
 Your user's goals are: ${JSON.stringify(negotiation.parameters)}
 The full conversation history is: 
-${JSON.stringify(updatedHistory)}
+ ${JSON.stringify(updatedHistory)}
 
-${senderRole === 'owner' 
+ ${senderRole === 'owner' 
   ? `The latest message is an instruction from the owner: "${newHistoryEntry.content}"`
   : `The latest message from the counterparty is: "${newHistoryEntry.content}"`
 }
 
 Analyze the latest message in the context of the user's goals and the entire conversation.
+
+CRITICAL: Your user has set these non-negotiable minimum terms:
+- Minimum price: $5,000
+- Payment terms: 15 days or less
+
+You MUST NOT accept any offer below $5,000 or with payment terms longer than 15 days.
+
 Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
 
-${senderRole === 'owner'
+ ${senderRole === 'owner'
   ? `Since this is an instruction from the owner, follow their guidance and respond accordingly.`
   : `This is a message from the counterparty.`
 }
 
-- ACCEPT: Use if the counterparty agrees to all of the user's key terms.
-- COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question.
-- ESCALATE: Use if you are unsure, the request is outside your parameters, or if the counterparty is hostile.
+ACCEPT: Use ONLY if the counterparty agrees to ALL of the user's key terms (minimum $5,000 and payment terms of 15 days or less).
+
+COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question. Always maintain the minimum terms specified by the owner.
+
+ESCALATE: Use if the counterparty is hostile, unwilling to meet the minimum terms, or if you're unsure how to proceed.
 
 You must also generate the text for the next email to send.
 Respond ONLY with a valid JSON object in the format:
