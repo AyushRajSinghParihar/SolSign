@@ -144,21 +144,34 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
         }, 'Negotiation fetch failed');
         throw new Error(`Negotiation ${negotiationId} not found or inaccessible`);
       }
+      const ownerEmail = (negotiation as any)?.owner?.email;
       log.info({
         durMs: durationMs(fetchStart),
         status: negotiation.status,
-        ownerEmailPresent: Boolean((negotiation as any)?.owner?.email),
+        ownerEmailPresent: Boolean(ownerEmail),
         historyCount: Array.isArray(negotiation.history) ? negotiation.history.length : 0,
       }, 'Negotiation fetched');
 
       // 5) APPEND HISTORY
       const histStart = performance.now();
+      
+      // Determine if the email is from the owner or counterparty
+      const isOwnerEmail = ownerEmail && fromEmail.toLowerCase().includes(ownerEmail.toLowerCase());
+      const senderRole = isOwnerEmail ? 'owner' : 'counterparty';
+      
       const newHistoryEntry = {
-        role: 'counterparty',
+        role: senderRole,
         content: emailText,
         timestamp: new Date().toISOString(),
       };
       const updatedHistory = [...(negotiation.history || []), newHistoryEntry];
+      
+      log.info({
+        fromEmail,
+        ownerEmail,
+        isOwnerEmail,
+        senderRole,
+      }, 'Identified email sender');
 
       const { error: histError, status: histStatus } = await supabaseServiceRole
         .from('negotiations')
@@ -185,11 +198,22 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       const geminiPrompt = `
 You are an AI contract negotiation agent.
 Your user's goals are: ${JSON.stringify(negotiation.parameters)}
-The full conversation history is: ${JSON.stringify(updatedHistory)}
-The latest message from the counterparty is: "${newHistoryEntry.content}"
+The full conversation history is: 
+${JSON.stringify(updatedHistory)}
+
+${senderRole === 'owner' 
+  ? `The latest message is an instruction from the owner: "${newHistoryEntry.content}"`
+  : `The latest message from the counterparty is: "${newHistoryEntry.content}"`
+}
 
 Analyze the latest message in the context of the user's goals and the entire conversation.
 Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
+
+${senderRole === 'owner'
+  ? `Since this is an instruction from the owner, follow their guidance and respond accordingly.`
+  : `This is a message from the counterparty.`
+}
+
 - ACCEPT: Use if the counterparty agrees to all of the user's key terms.
 - COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question.
 - ESCALATE: Use if you are unsure, the request is outside your parameters, or if the counterparty is hostile.
@@ -232,7 +256,6 @@ Respond ONLY with a valid JSON object in the format:
       const actionStart = performance.now();
       let newStatus = negotiation.status;
       const uniqueReplyToAddress = `neg-${negotiation.id}@negotiate.solsignai.com`;
-      const ownerEmail = (negotiation.owner as any)?.email;
 
       // Log the from address we're going to use
       log.info({
