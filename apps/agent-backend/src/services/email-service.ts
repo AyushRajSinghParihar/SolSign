@@ -5,7 +5,7 @@ interface EmailOptions {
   from: string;
   subject: string;
   html: string;
-  replyTo?: string; // Use dedicated replyTo field instead of headers
+  replyTo?: string;
   headers?: Record<string, string>;
 }
 
@@ -16,28 +16,61 @@ export async function sendEmail(options: EmailOptions) {
     return;
   }
 
-  // Extract Reply-To from headers if it exists (for backward compatibility)
-  // and remove it from custom headers since it's a reserved header
+  // Parse the from address for detailed logging
+  let fromEmail: string;
+  let fromName: string;
+  
+  try {
+    if (options.from.includes('<')) {
+      fromEmail = options.from.split('<')[1].slice(0, -1).trim();
+      fromName = options.from.split('<')[0].trim();
+    } else {
+      fromEmail = options.from.trim();
+      fromName = '';
+    }
+  } catch (parseError) {
+    logger.error({ 
+      error: parseError, 
+      rawFrom: options.from 
+    }, 'Failed to parse from address');
+    throw new Error('Invalid from address format');
+  }
+
+  // Extract Reply-To from headers if it exists
   const customHeaders = { ...options.headers };
   const replyToEmail = options.replyTo || customHeaders['Reply-To'];
-  delete customHeaders['Reply-To']; // Remove reserved header
+  delete customHeaders['Reply-To'];
 
   const emailBody: any = {
     personalizations: [{ to: [{ email: options.to }] }],
-    from: { email: options.from.split('<')[1].slice(0,-1), name: options.from.split('<')[0].trim() },
+    from: { 
+      email: fromEmail,
+      ...(fromName && { name: fromName })
+    },
     subject: options.subject,
     content: [{ type: 'text/html', value: options.html }],
   };
 
-  // Add reply_to as a top-level field if provided
   if (replyToEmail) {
     emailBody.reply_to = { email: replyToEmail };
   }
 
-  // Only add headers if there are non-reserved headers
   if (Object.keys(customHeaders).length > 0) {
     emailBody.headers = customHeaders;
   }
+
+  // Enhanced debug logging before sending
+  logger.info({
+    emailDetails: {
+      to: options.to,
+      from: fromEmail,
+      fromName: fromName || 'none',
+      replyTo: replyToEmail || 'none',
+      subject: options.subject,
+      hasCustomHeaders: Object.keys(customHeaders).length > 0,
+      bodySize: JSON.stringify(emailBody).length
+    }
+  }, 'Attempting to send email via SendGrid');
 
   try {
     const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -51,11 +84,38 @@ export async function sendEmail(options: EmailOptions) {
 
     if (!response.ok) {
       const errorBody = await response.json();
-      logger.error({ error: errorBody }, `Failed to send email to ${options.to}`);
+      logger.error({ 
+        statusCode: response.status,
+        statusText: response.statusText,
+        error: errorBody,
+        emailAttempt: {
+          to: options.to,
+          from: fromEmail,
+          fromName: fromName || 'none',
+          replyTo: replyToEmail || 'none'
+        }
+      }, `Failed to send email to ${options.to}`);
+      
+      // Throw error so caller knows it failed
+      throw new Error(`SendGrid API error: ${JSON.stringify(errorBody)}`);
     } else {
-      logger.info(`Successfully sent email to ${options.to}`);
+      logger.info({
+        to: options.to,
+        from: fromEmail,
+        subject: options.subject
+      }, `Successfully sent email to ${options.to}`);
     }
   } catch (error) {
-    logger.error({ error }, 'Error sending email via SendGrid');
+    if (error instanceof Error && error.message.includes('SendGrid API error')) {
+      throw error; // Re-throw SendGrid errors
+    }
+    logger.error({ 
+      error,
+      emailAttempt: {
+        to: options.to,
+        from: fromEmail,
+      }
+    }, 'Network error sending email via SendGrid');
+    throw new Error(`Email send failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

@@ -1,9 +1,14 @@
-// apps/agent-backend/src/routes/webhook.ts
+// apps/agent-backend/src/routes/webhooks.ts
 import { FastifyPluginAsync } from 'fastify';
 import multipart from '@fastify/multipart';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { sendEmail } from '../services/email-service.js';
 import { createClient } from '@supabase/supabase-js';
+
+const VERIFIED_FROM_ADDRESS = process.env.VERIFIED_FROM_EMAIL || 'no-reply@negotiate.solsignai.com';
+const VERIFIED_FROM_NAME = process.env.VERIFIED_FROM_NAME || 'SolSignAI Agent';
+const VERIFIED_FROM_FULL = `${VERIFIED_FROM_NAME} <${VERIFIED_FROM_ADDRESS}>`;
+
 
 type AnyObj = Record<string, any>;
 
@@ -229,43 +234,67 @@ Respond ONLY with a valid JSON object in the format:
       const uniqueReplyToAddress = `neg-${negotiation.id}@negotiate.solsignai.com`;
       const ownerEmail = (negotiation.owner as any)?.email;
 
+      // Log the from address we're going to use
+      log.info({
+        verifiedFromAddress: VERIFIED_FROM_ADDRESS,
+        verifiedFromName: VERIFIED_FROM_NAME,
+        action
+      }, 'Preparing to send emails');
+
       try {
         if (action === 'ACCEPT') {
           newStatus = 'agreed';
+          
+          // Email to counterparty
           await sendEmail({
             to: fromEmail,
-            from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
+            from: VERIFIED_FROM_FULL,
             subject: `Agreement Reached`,
             html: emailResponseText
           });
+          
+          // Email to owner
           if (ownerEmail) {
             await sendEmail({
               to: ownerEmail,
-              from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
+              from: VERIFIED_FROM_FULL,
               subject: `Agreement Reached for Negotiation ${negotiation.id}`,
               html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${emailResponseText}`
             });
           }
         } else if (action === 'COUNTER-PROPOSE') {
           newStatus = 'in_progress';
+          
           await sendEmail({
             to: fromEmail,
-            from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
+            from: VERIFIED_FROM_FULL,
             subject: `Re: ${subjectText}`,
             html: emailResponseText,
             replyTo: uniqueReplyToAddress
           });
         } else if (action === 'ESCALATE') {
           newStatus = 'escalated';
+          
           if (ownerEmail) {
+            log.info({ 
+              ownerEmail,
+              fromAddress: VERIFIED_FROM_ADDRESS 
+            }, 'Sending escalation email to owner');
+            
             await sendEmail({
               to: ownerEmail,
-              from: `SolSignAI Agent <agent@negotiate.solsignai.com>`,
+              from: VERIFIED_FROM_FULL,
               subject: `Action Required: Negotiation Escalated`,
-              html: `The negotiation requires your input. The agent's summary is: <br/><br/>${emailResponseText}`
+              html: `The negotiation requires your input. The agent's summary is: <br/><br/>${emailResponseText}`,
+              replyTo: uniqueReplyToAddress // Allow owner to reply directly to the negotiation
             });
+            
+            log.info('Escalation email sent successfully');
+          } else {
+            log.warn('ESCALATE action but no owner email found');
           }
         }
+        
         log.info({
           durMs: durationMs(actionStart),
           newStatus,
@@ -274,12 +303,18 @@ Respond ONLY with a valid JSON object in the format:
       } catch (mailErr) {
         log.error({
           durMs: durationMs(actionStart),
-          err: { msg: (mailErr as Error)?.message, stack: (mailErr as Error)?.stack },
+          err: { 
+            msg: (mailErr as Error)?.message, 
+            stack: (mailErr as Error)?.stack 
+          },
           action,
+          attemptedFromAddress: VERIFIED_FROM_ADDRESS,
         }, 'sendEmail failed');
-        throw new Error('Email dispatch failed');
+        
+        // Don't throw - log the error but continue processing
+        // The negotiation state should still be updated
+        log.warn('Continuing despite email failure - negotiation will still be updated');
       }
-
       // 8) FINAL STATUS + HISTORY APPEND
       const finalStart = performance.now();
       const finalHistory = [
