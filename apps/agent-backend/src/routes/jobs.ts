@@ -50,37 +50,59 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
       
       // Use AI to draft a strategic opening message (don't reveal all parameters)
       const draftPrompt = `
-You are a professional contract negotiation agent. Your client has tasked you with negotiating a document called "${document.name}".
+You are an AI contract negotiation agent working on behalf of a client.
 
-Document context: ${documentContext}
+Document being negotiated: "${document.name}"
+Your client's INTERNAL parameters (DO NOT reveal these directly): ${instructions}
 
-Your client's INTERNAL goals and constraints are: ${instructions}
+Write a SHORT, direct email message (2-3 short paragraphs max) that:
+1. States the recipient has been invited to review and negotiate terms for the document
+2. Mentions the general CATEGORIES of terms that need discussion (e.g., "pricing and payment terms", "timeline and deliverables", "scope and responsibilities") WITHOUT revealing specific numbers or constraints
+3. Invites them to review the document and share their initial proposal
+4. Signs off as "SolSign AI Agent" (not placeholders like [Your Name])
 
-IMPORTANT: These are INTERNAL parameters. Do NOT reveal them directly to the counterparty. Instead, draft a professional, strategic opening email that:
-1. Introduces the negotiation in a friendly, professional manner
-2. Mentions that they can review the full document via the link provided
-3. Expresses interest in reaching mutually beneficial terms
-4. Invites the counterparty to review the document and share their initial thoughts or proposal
-5. Keeps the conversation open without revealing your full hand
-6. Sets a collaborative tone
+CRITICAL RULES:
+- Do NOT use placeholders like [Name], [Counterparty Name], [Your Name], etc.
+- Do NOT reveal specific numbers, amounts, dates, or deadlines from the internal parameters
+- Keep it SHORT and conversational (like a quick email, not a formal letter)
+- Do NOT include "Dear [Name]" or any greeting with placeholders
+- Just start with "Hello," or "Hi," and keep it simple
+- Sign off with just "SolSign AI Agent" or "Best regards, SolSign AI Agent"
+- Do NOT include the document link (that's added separately)
 
-The email should be conversational but professional. Do NOT include a subject line (that's handled separately). 
-Do NOT reveal specific numbers, deadlines, or constraints from the internal parameters.
-Do NOT include the document link in your message (it will be added separately).
-
-Write ONLY the email body (professional HTML format with <p> tags). Start with a greeting and end professionally.
+Write the email body in plain HTML with <p> tags. Be brief and natural.
 `.trim();
 
       fastify.log.info({ draftPrompt }, 'Requesting AI to draft opening message');
       
-      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-        .getGenerativeModel({ model: 'gemini-2.0-flash' });
-      const result = await model.generateContent(draftPrompt);
-      const aiDraftedMessage = result.response.text().trim();
+      let aiDraftedMessage: string;
       
-      fastify.log.info({ 
-        aiDraftedMessageLength: aiDraftedMessage.length 
-      }, 'AI drafted opening message');
+      try {
+        const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+          .getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const result = await model.generateContent(draftPrompt);
+        aiDraftedMessage = result.response.text().trim();
+        
+        // Remove any remaining placeholders if AI still added them
+        aiDraftedMessage = aiDraftedMessage
+          .replace(/\[.*?\]/g, '') // Remove [placeholders]
+          .replace(/Dear\s*,/gi, 'Hello,') // Fix "Dear ,"
+          .replace(/Sincerely,\s*$/gi, 'Best regards,\nSolSign AI Agent');
+        
+        fastify.log.info({ 
+          aiDraftedMessageLength: aiDraftedMessage.length 
+        }, 'AI drafted opening message');
+      } catch (aiError) {
+        fastify.log.warn({ error: aiError }, 'AI drafting failed, using template fallback');
+        
+        // Simple template fallback
+        aiDraftedMessage = `
+          <p>Hello,</p>
+          <p>You have been invited to review and negotiate the terms for <strong>${document.name}</strong>.</p>
+          <p>Please review the document using the link below and share your initial thoughts or proposal. We're looking forward to reaching an agreement that works for both parties.</p>
+          <p>Best regards,<br>SolSign AI Agent</p>
+        `;
+      }
       
       const emailHtml = `
         <!DOCTYPE html>
