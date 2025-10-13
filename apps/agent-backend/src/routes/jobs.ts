@@ -43,31 +43,51 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
         documentViewUrl
       }, 'Extracted instructions for email.');
       
-      // Extract document context for AI
-      const documentContext = (document as any).template 
-        ? `This is a template-based document with fillable fields.` 
-        : `This is a content-based document: ${document.content ? document.content.substring(0, 200) + '...' : 'No preview available'}`;
+      // Extract document context for AI - get more details
+      let documentSummary = '';
+      const template = (document as any).template;
+      
+      if (template?.extracted_data_json) {
+        // Extract key information from template
+        const fields = template.extracted_data_json.fields || [];
+        const clauses = template.extracted_data_json.clauses || [];
+        
+        const fieldLabels = fields.slice(0, 5).map((f: any) => f.label).join(', ');
+        const clauseTypes = clauses.slice(0, 3).map((c: any) => c.type).join(', ');
+        
+        documentSummary = `Template-based document. Key fields include: ${fieldLabels}. Key clauses: ${clauseTypes}.`;
+      } else if (document.content) {
+        // Use first 300 chars of content
+        documentSummary = document.content.substring(0, 300).replace(/\n/g, ' ').trim() + '...';
+      } else {
+        documentSummary = 'A legal agreement document.';
+      }
       
       // Use AI to draft a strategic opening message (don't reveal all parameters)
       const draftPrompt = `
 You are an AI contract negotiation agent working on behalf of a client.
 
 Document being negotiated: "${document.name}"
+
+Document details/context: ${documentSummary}
+
 Your client's INTERNAL parameters (DO NOT reveal these directly): ${instructions}
 
-Write a SHORT, direct email message (2-3 short paragraphs max) that:
+Write a SHORT, direct email message (3-4 short paragraphs max) that:
 1. States the recipient has been invited to review and negotiate terms for the document
-2. Mentions the general CATEGORIES of terms that need discussion (e.g., "pricing and payment terms", "timeline and deliverables", "scope and responsibilities") WITHOUT revealing specific numbers or constraints
-3. Invites them to review the document and share their initial proposal
-4. Signs off as "SolSign AI Agent" (not placeholders like [Your Name])
+2. Provides a BRIEF 1-2 sentence summary of what the document is about (based on the document details above) - this helps them understand the context
+3. Mentions the general CATEGORIES of terms that need discussion (e.g., "pricing and payment terms", "timeline and deliverables", "scope and responsibilities") WITHOUT revealing specific numbers or constraints from the internal parameters
+4. Invites them to review the full document and share their initial proposal
+5. Signs off as "SolSign AI Agent"
 
 CRITICAL RULES:
 - Do NOT use placeholders like [Name], [Counterparty Name], [Your Name], etc.
 - Do NOT reveal specific numbers, amounts, dates, or deadlines from the internal parameters
+- DO include a brief summary of what the document is about (1-2 sentences) so they have context
 - Keep it SHORT and conversational (like a quick email, not a formal letter)
 - Do NOT include "Dear [Name]" or any greeting with placeholders
 - Just start with "Hello," or "Hi," and keep it simple
-- Sign off with just "SolSign AI Agent" or "Best regards, SolSign AI Agent"
+- Sign off with "Best regards,\nSolSign AI Agent"
 - Do NOT include the document link (that's added separately)
 
 Write the email body in plain HTML with <p> tags. Be brief and natural.
@@ -95,11 +115,16 @@ Write the email body in plain HTML with <p> tags. Be brief and natural.
       } catch (aiError) {
         fastify.log.warn({ error: aiError }, 'AI drafting failed, using template fallback');
         
-        // Simple template fallback
+        // Simple template fallback with document summary
+        const summaryForEmail = documentSummary.length > 200 
+          ? documentSummary.substring(0, 200) + '...' 
+          : documentSummary;
+        
         aiDraftedMessage = `
           <p>Hello,</p>
           <p>You have been invited to review and negotiate the terms for <strong>${document.name}</strong>.</p>
-          <p>Please review the document using the link below and share your initial thoughts or proposal. We're looking forward to reaching an agreement that works for both parties.</p>
+          <p><strong>About this document:</strong> ${summaryForEmail}</p>
+          <p>Please review the full document using the link below and share your initial thoughts or proposal. We're looking forward to reaching an agreement that works for both parties.</p>
           <p>Best regards,<br>SolSign AI Agent</p>
         `;
       }
@@ -117,6 +142,7 @@ Write the email body in plain HTML with <p> tags. Be brief and natural.
             .document-link { background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; font-weight: bold; }
             .document-link:hover { background: #5568d3; }
             .document-box { background: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; }
+            .document-info { background: #f0f4ff; padding: 15px; border-radius: 5px; margin: 20px 0; font-size: 14px; }
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
           </style>
         </head>
@@ -130,6 +156,18 @@ Write the email body in plain HTML with <p> tags. Be brief and natural.
               <div class="message">
                 ${aiDraftedMessage}
               </div>
+              
+              ${template?.extracted_data_json ? `
+              <div class="document-info">
+                <p><strong>📋 Document Overview:</strong></p>
+                ${template.extracted_data_json.fields?.length > 0 ? `
+                  <p><strong>Key Information Required:</strong> ${template.extracted_data_json.fields.slice(0, 5).map((f: any) => f.label).join(', ')}${template.extracted_data_json.fields.length > 5 ? ` and ${template.extracted_data_json.fields.length - 5} more` : ''}</p>
+                ` : ''}
+                ${template.extracted_data_json.clauses?.length > 0 ? `
+                  <p><strong>Main Clauses:</strong> ${template.extracted_data_json.clauses.slice(0, 3).map((c: any) => c.type).join(', ')}${template.extracted_data_json.clauses.length > 3 ? ` and ${template.extracted_data_json.clauses.length - 3} more` : ''}</p>
+                ` : ''}
+              </div>
+              ` : ''}
               
               <div class="document-box">
                 <p><strong>📄 Document to Review:</strong></p>
