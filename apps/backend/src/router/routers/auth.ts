@@ -31,6 +31,8 @@ export const authRouter = t.router({
       })
     )
     .mutation(async ({ input }) => {
+      console.log("🔐 Starting signature verification for:", input.publicKey);
+      
       try {
         // 1. Verify the signature
         const signatureBytes = bs58.decode(input.signature);
@@ -44,36 +46,50 @@ export const authRouter = t.router({
         );
 
         if (!isVerified) {
+          console.error("❌ Signature verification failed");
           throw new TRPCError({
             code: "UNAUTHORIZED",
             message: "Signature verification failed.",
           });
         }
 
+        console.log("✅ Signature verified successfully");
+
         // 2. Find or Create the Auth User
         let user: User | undefined;
 
+        console.log("👤 Attempting to create/find user in Supabase...");
+        
         const { data: createData, error: creationError } =
           await supabaseAdmin.auth.admin.createUser({
             email: `${input.publicKey}@solsign.ai`,
-            email_confirm: true, // This is safe because we disabled email confirmation in Supabase settings
+            email_confirm: true,
             user_metadata: { wallet_address: input.publicKey },
+            app_metadata: { wallet_address: input.publicKey },
+          }).catch((err) => {
+            console.error("❌ Supabase createUser threw exception:", err);
+            return { data: null, error: err };
           });
 
         if (creationError) {
-          // Check if the error is because the user's email (our dummy email) already exists.
+          console.log("⚠️ User creation returned error:", creationError);
+          
+          // Check if the error is because the user already exists
           const isUserConflict =
-            // @ts-ignore - Supabase AuthError has a `code` property which we check here
-            creationError.code === "email_exists" ||
-            creationError.message.includes("already registered");
+            creationError?.message?.includes("already") ||
+            creationError?.message?.includes("exist") ||
+            creationError?.message?.includes("duplicate");
 
           if (isUserConflict) {
+            console.log("🔍 User exists, fetching from database...");
             // User exists, so we fetch them.
             const {
               data: { users },
               error: listError,
             } = await supabaseAdmin.auth.admin.listUsers();
+            
             if (listError) {
+              console.error("❌ Failed to list users:", listError);
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
                 message: "Failed to list users after creation attempt failed.",
@@ -81,29 +97,34 @@ export const authRouter = t.router({
             }
 
             const existingUser = users.find(
-              (u) => u.user_metadata?.wallet_address === input.publicKey
+              (u) => u.user_metadata?.wallet_address === input.publicKey ||
+                     u.app_metadata?.wallet_address === input.publicKey
             );
+            
             if (!existingUser) {
+              console.error("❌ User not found in list after conflict");
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message:
-                  "User conflict detected, but could not find existing user by wallet address.",
+                message: "User conflict detected, but could not find existing user by wallet address.",
               });
             }
+            
+            console.log("✅ Found existing user:", existingUser.id);
             user = existingUser;
           } else {
             // A different, unexpected error occurred during creation.
             console.error(
               "❌ Supabase user creation failed with an unexpected error:",
-              JSON.stringify(creationError, null, 2)
+              creationError
             );
             throw new TRPCError({
               code: "INTERNAL_SERVER_ERROR",
-              message: `Could not create user. Reason: ${creationError.message}`,
+              message: `Could not create user. Reason: ${creationError?.message || "Unknown error"}`,
             });
           }
         } else {
           // Creation was successful!
+          console.log("✅ User created successfully:", createData?.user?.id);
           user = createData.user;
         }
 

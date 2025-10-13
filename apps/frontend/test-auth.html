@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Auth Storage</title>
+</head>
+<body>
+    <h1>Auth Storage Test</h1>
+    <button onclick="clearAuth()">Clear Auth Storage</button>
+    <button onclick="checkAuth()">Check Auth Storage</button>
+    <pre id="output"></pre>
+    
+    <script>
+        function clearAuth() {
+            localStorage.removeItem('auth-storage');
+            document.getElementById('output').textContent = 'Auth storage cleared!';
+        }
+        
+        function checkAuth() {
+            const auth = localStorage.getItem('auth-storage');
+            document.getElementById('output').textContent = auth ? JSON.stringify(JSON.parse(auth), null, 2) : 'No auth data';
+        }
+        
+        // Auto-check on load
+        checkAuth();
+    </script>
+</body>
+</html>
