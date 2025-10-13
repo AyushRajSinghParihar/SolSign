@@ -125,7 +125,7 @@ export const authRouter = t.router({
         } else {
           // Creation was successful!
           console.log("✅ User created successfully:", createData?.user?.id);
-          user = createData.user;
+          user = createData?.user ?? undefined;
         }
 
         if (!user) {

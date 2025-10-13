@@ -1,5 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { sendEmail } from '../services/email-service.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const jobRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/start-negotiation', async (request, reply) => {
@@ -17,10 +18,10 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
         parametersType: typeof negotiation.parameters
       }, 'Received start-negotiation job.');
 
-      // Fetch document details from Supabase
+      // Fetch document details from Supabase (including template for more context)
       const { data: document, error: docError } = await fastify.supabase
         .from('documents')
-        .select('name')
+        .select('name, content, template:templates(*)')
         .eq('id', negotiation.document_id)
         .single();
 
@@ -28,15 +29,58 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
         throw new Error(`Document not found for negotiation ${negotiation.id}`);
       }
 
-      // Send the "First Contact" email
       const uniqueReplyToAddress = `neg-${negotiation.id}@negotiate.solsignai.com`;
       const instructions = negotiation.parameters?.instructions || 'Review and negotiate the terms of this document';
+      
+      // Build the document view URL
+      const appBaseUrl = process.env.APP_BASE_URL || 'https://solsignai.com';
+      const documentViewUrl = `${appBaseUrl}/documents/${negotiation.document_id}`;
       
       fastify.log.info({ 
         instructions,
         parametersObject: negotiation.parameters,
-        hasInstructions: !!negotiation.parameters?.instructions 
+        hasInstructions: !!negotiation.parameters?.instructions,
+        documentViewUrl
       }, 'Extracted instructions for email.');
+      
+      // Extract document context for AI
+      const documentContext = (document as any).template 
+        ? `This is a template-based document with fillable fields.` 
+        : `This is a content-based document: ${document.content ? document.content.substring(0, 200) + '...' : 'No preview available'}`;
+      
+      // Use AI to draft a strategic opening message (don't reveal all parameters)
+      const draftPrompt = `
+You are a professional contract negotiation agent. Your client has tasked you with negotiating a document called "${document.name}".
+
+Document context: ${documentContext}
+
+Your client's INTERNAL goals and constraints are: ${instructions}
+
+IMPORTANT: These are INTERNAL parameters. Do NOT reveal them directly to the counterparty. Instead, draft a professional, strategic opening email that:
+1. Introduces the negotiation in a friendly, professional manner
+2. Mentions that they can review the full document via the link provided
+3. Expresses interest in reaching mutually beneficial terms
+4. Invites the counterparty to review the document and share their initial thoughts or proposal
+5. Keeps the conversation open without revealing your full hand
+6. Sets a collaborative tone
+
+The email should be conversational but professional. Do NOT include a subject line (that's handled separately). 
+Do NOT reveal specific numbers, deadlines, or constraints from the internal parameters.
+Do NOT include the document link in your message (it will be added separately).
+
+Write ONLY the email body (professional HTML format with <p> tags). Start with a greeting and end professionally.
+`.trim();
+
+      fastify.log.info({ draftPrompt }, 'Requesting AI to draft opening message');
+      
+      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+        .getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const result = await model.generateContent(draftPrompt);
+      const aiDraftedMessage = result.response.text().trim();
+      
+      fastify.log.info({ 
+        aiDraftedMessageLength: aiDraftedMessage.length 
+      }, 'AI drafted opening message');
       
       const emailHtml = `
         <!DOCTYPE html>
@@ -47,43 +91,49 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
             .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .message { background: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
+            .document-link { background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; font-weight: bold; }
+            .document-link:hover { background: #5568d3; }
+            .document-box { background: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; }
             .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
-            .parameters { background: white; padding: 15px; border-left: 4px solid #667eea; margin: 20px 0; }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
               <h1>🤖 AI Contract Negotiation</h1>
-              <p>You've been invited to negotiate a document</p>
+              <p>Document: <strong>${document.name}</strong></p>
             </div>
             <div class="content">
-              <h2>Document: ${document.name}</h2>
-              
-              <p>Hello,</p>
-              
-              <p>You have been invited to negotiate the terms of <strong>"${document.name}"</strong>. An AI agent has been assigned to facilitate this negotiation on behalf of the document owner.</p>
-              
-              <div class="parameters">
-                <strong>Negotiation Parameters:</strong>
-                <p>${instructions}</p>
+              <div class="message">
+                ${aiDraftedMessage}
               </div>
               
-              <p><strong>How to proceed:</strong></p>
+              <div class="document-box">
+                <p><strong>📄 Document to Review:</strong></p>
+                <p>${document.name}</p>
+                <a href="${documentViewUrl}" class="document-link" target="_blank">
+                  View Document →
+                </a>
+                <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                  Click the button above to review the full document before responding.
+                </p>
+              </div>
+              
+              <p><strong>💬 How to Proceed:</strong></p>
               <ol>
-                <li>Review the negotiation parameters above</li>
-                <li>Reply directly to this email with your response, questions, or counter-proposals</li>
-                <li>The AI agent will respond within minutes to facilitate the negotiation</li>
-                <li>Continue the conversation via email until terms are agreed upon</li>
+                <li>Review the document using the link above</li>
+                <li>Reply to this email with your thoughts, questions, or proposals</li>
+                <li>An AI agent will respond within minutes to facilitate the negotiation</li>
+                <li>Continue the conversation via email until we reach an agreement</li>
               </ol>
               
-              <p><strong>Simply reply to this email to start the negotiation.</strong></p>
+              <p><strong>Simply reply to this email to continue the conversation.</strong></p>
               
               <div class="footer">
-                <p>This is an automated AI-powered negotiation system by SolSign.</p>
+                <p>This is an AI-powered negotiation system by SolSign.</p>
                 <p>Negotiation ID: ${negotiation.id}</p>
-                <p>Reply-To: ${uniqueReplyToAddress}</p>
+                <p>Document Link: ${documentViewUrl}</p>
               </div>
             </div>
           </div>
@@ -104,7 +154,7 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
         ...negotiation.history,
         {
           role: 'agent',
-          content: 'Sent initial contact email to counterparty.',
+          content: aiDraftedMessage,
           timestamp: new Date().toISOString(),
         }
       ];
