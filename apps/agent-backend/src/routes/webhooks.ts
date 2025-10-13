@@ -145,10 +145,12 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
         throw new Error(`Negotiation ${negotiationId} not found or inaccessible`);
       }
       const ownerEmail = (negotiation as any)?.owner?.email;
+      const counterpartyEmail = negotiation.counterparty_email;
       log.info({
         durMs: durationMs(fetchStart),
         status: negotiation.status,
         ownerEmailPresent: Boolean(ownerEmail),
+        counterpartyEmailPresent: Boolean(counterpartyEmail),
         historyCount: Array.isArray(negotiation.history) ? negotiation.history.length : 0,
       }, 'Negotiation fetched');
 
@@ -213,7 +215,7 @@ Analyze the latest message in the context of the user's goals and the entire con
 CRITICAL: Your user has set specific parameters for this negotiation. These parameters represent their requirements and constraints. You MUST respect these parameters at all times.
 
  ${senderRole === 'owner'
-  ? `Since this is an instruction from the owner, follow their guidance and respond accordingly.`
+  ? `IMPORTANT: This is an instruction from the owner (your user). Follow their guidance and respond to the counterparty accordingly. DO NOT ESCALATE back to the owner - they have already given you instructions.`
   : `This is a message from the counterparty.`
 }
 
@@ -221,9 +223,9 @@ Decide the next action. Your possible actions are: ACCEPT, COUNTER-PROPOSE, or E
 
 ACCEPT: Use ONLY if the counterparty agrees to ALL of the user's key parameters and requirements.
 
-COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question. Always maintain the user's key parameters and requirements.
+COUNTER-PROPOSE: Use if you need to suggest a change or respond to a question. Always maintain the user's key parameters and requirements. ${senderRole === 'owner' ? 'Use this when the owner gives you instructions on how to proceed with the counterparty.' : ''}
 
-ESCALATE: Use if the counterparty is hostile, unwilling to meet the user's requirements, or if you're unsure how to proceed.
+ESCALATE: Use ONLY if the counterparty is hostile, unwilling to meet the user's requirements, or if you're unsure how to proceed. ${senderRole === 'owner' ? 'NEVER use ESCALATE when the message is from the owner.' : ''}
 
 You must also generate the text for the next email to send.
 Respond ONLY with a valid JSON object in the format:
@@ -268,23 +270,44 @@ Respond ONLY with a valid JSON object in the format:
       log.info({
         verifiedFromAddress: VERIFIED_FROM_ADDRESS,
         verifiedFromName: VERIFIED_FROM_NAME,
-        action
+        action,
+        senderRole
       }, 'Preparing to send emails');
 
+      // CRITICAL FIX: If the message is from the owner, never escalate back to them
+      if (senderRole === 'owner' && action === 'ESCALATE') {
+        log.warn({
+          action,
+          senderRole,
+          fromEmail,
+          ownerEmail
+        }, 'Prevented escalation loop: Owner sent message but AI tried to escalate. Forcing COUNTER-PROPOSE instead.');
+        
+        // Override the action to COUNTER-PROPOSE when owner sends instructions
+        aiResponse.action = 'COUNTER-PROPOSE';
+        // If responseText doesn't make sense for counter-propose, generate a default
+        if (!aiResponse.responseText || aiResponse.responseText.includes('escalat')) {
+          aiResponse.responseText = 'Thank you for your guidance. I will proceed with the negotiation based on your instructions.';
+        }
+      }
+
+      // Use the potentially modified action
+      const finalAction = aiResponse.action;
+
       try {
-        if (action === 'ACCEPT') {
+        if (finalAction === 'ACCEPT') {
           newStatus = 'agreed';
           
-          // Email to counterparty
+          // Always send acceptance to counterparty
           await sendEmail({
-            to: fromEmail,
+            to: counterpartyEmail,
             from: VERIFIED_FROM_FULL,
             subject: `Agreement Reached`,
             html: emailResponseText
           });
           
-          // Email to owner
-          if (ownerEmail) {
+          // Notify owner if they weren't the one who triggered acceptance
+          if (ownerEmail && senderRole !== 'owner') {
             await sendEmail({
               to: ownerEmail,
               from: VERIFIED_FROM_FULL,
@@ -292,17 +315,40 @@ Respond ONLY with a valid JSON object in the format:
               html: `The negotiation has been successfully agreed upon. The final response was: <br/><br/>${emailResponseText}`
             });
           }
-        } else if (action === 'COUNTER-PROPOSE') {
+          
+          log.info({
+            senderRole,
+            acceptedBy: senderRole,
+            notifiedOwner: senderRole !== 'owner'
+          }, 'Agreement emails sent');
+        } else if (finalAction === 'COUNTER-PROPOSE') {
           newStatus = 'in_progress';
           
+          // Get the potentially updated response text
+          const finalResponseText = aiResponse.responseText;
+          
+          // CRITICAL: If sender is owner, send to counterparty. If sender is counterparty, send to counterparty (reply).
+          const recipientEmail = senderRole === 'owner' ? counterpartyEmail : fromEmail;
+          
+          if (!recipientEmail) {
+            log.error({ senderRole, fromEmail, counterpartyEmail }, 'No recipient email available for COUNTER-PROPOSE');
+            throw new Error('Cannot send counter-proposal: no recipient email');
+          }
+          
           await sendEmail({
-            to: fromEmail,
+            to: recipientEmail,
             from: VERIFIED_FROM_FULL,
             subject: `Re: ${subjectText}`,
-            html: emailResponseText,
+            html: finalResponseText,
             replyTo: uniqueReplyToAddress
           });
-        } else if (action === 'ESCALATE') {
+          
+          log.info({
+            senderRole,
+            recipientEmail,
+            sentToCounterparty: senderRole === 'owner'
+          }, 'Counter-proposal email sent');
+        } else if (finalAction === 'ESCALATE') {
           newStatus = 'escalated';
           
           if (ownerEmail) {
@@ -328,6 +374,7 @@ Respond ONLY with a valid JSON object in the format:
         log.info({
           durMs: durationMs(actionStart),
           newStatus,
+          finalAction,
           ownerEmailPresent: Boolean(ownerEmail),
         }, 'Emails sent and action executed');
       } catch (mailErr) {
@@ -337,7 +384,7 @@ Respond ONLY with a valid JSON object in the format:
             msg: (mailErr as Error)?.message, 
             stack: (mailErr as Error)?.stack 
           },
-          action,
+          finalAction,
           attemptedFromAddress: VERIFIED_FROM_ADDRESS,
         }, 'sendEmail failed');
         
@@ -347,9 +394,11 @@ Respond ONLY with a valid JSON object in the format:
       }
       // 8) FINAL STATUS + HISTORY APPEND
       const finalStart = performance.now();
+      // Use the potentially modified response text
+      const finalResponseText = aiResponse.responseText;
       const finalHistory = [
         ...updatedHistory,
-        { role: 'agent', content: emailResponseText, timestamp: new Date().toISOString() }
+        { role: 'agent', content: finalResponseText, timestamp: new Date().toISOString() }
       ];
 
       const { error: finalErr, status: finalStatus } = await supabaseServiceRole
