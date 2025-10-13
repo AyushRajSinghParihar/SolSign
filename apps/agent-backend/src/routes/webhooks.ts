@@ -21,6 +21,26 @@ function durationMs(start: number) {
   return Math.round(performance.now() - start);
 }
 
+// Extract email address from "Name <email@domain.com>" or just "email@domain.com"
+function extractEmailAddress(emailString: string): string {
+  if (!emailString) return '';
+  
+  // Match email in angle brackets: "Name <email@domain.com>"
+  const bracketMatch = emailString.match(/<([^>]+)>/);
+  if (bracketMatch) {
+    return bracketMatch[1].trim();
+  }
+  
+  // If no brackets, check if it's already just an email
+  const emailMatch = emailString.match(/[\w.+-]+@[\w.-]+\.\w+/);
+  if (emailMatch) {
+    return emailMatch[0].trim();
+  }
+  
+  // Fallback: return original
+  return emailString.trim();
+}
+
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {
   // Local error hook: logs after error handler if an error is sent to user
   fastify.addHook('onError', async (request, reply, error) => {
@@ -158,7 +178,9 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       const histStart = performance.now();
       
       // Determine if the email is from the owner or counterparty
-      const isOwnerEmail = ownerEmail && fromEmail.toLowerCase().includes(ownerEmail.toLowerCase());
+      // Extract clean email address for comparison
+      const cleanFromEmail = extractEmailAddress(fromEmail).toLowerCase();
+      const isOwnerEmail = ownerEmail && cleanFromEmail === ownerEmail.toLowerCase();
       const senderRole = isOwnerEmail ? 'owner' : 'counterparty';
       
       const newHistoryEntry = {
@@ -170,6 +192,7 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       
       log.info({
         fromEmail,
+        cleanFromEmail,
         ownerEmail,
         isOwnerEmail,
         senderRole,
@@ -327,8 +350,11 @@ Respond ONLY with a valid JSON object in the format:
           // Get the potentially updated response text
           const finalResponseText = aiResponse.responseText;
           
-          // CRITICAL: If sender is owner, send to counterparty. If sender is counterparty, send to counterparty (reply).
-          const recipientEmail = senderRole === 'owner' ? counterpartyEmail : fromEmail;
+          // CRITICAL: If sender is owner, send to counterparty. If sender is counterparty, reply to them.
+          let recipientEmail = senderRole === 'owner' ? counterpartyEmail : fromEmail;
+          
+          // Extract clean email address (remove "Name <email>" format)
+          recipientEmail = extractEmailAddress(recipientEmail);
           
           if (!recipientEmail) {
             log.error({ senderRole, fromEmail, counterpartyEmail }, 'No recipient email available for COUNTER-PROPOSE');
