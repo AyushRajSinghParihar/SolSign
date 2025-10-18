@@ -63,34 +63,31 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
         documentSummary = 'A legal agreement document.';
       }
       
-      // Use AI to draft a strategic opening message (don't reveal all parameters)
+      // Use AI to draft a strategic opening message with reworded negotiation terms
       const draftPrompt = `
-You are an AI contract negotiation agent working on behalf of a client.
+You are an AI negotiation assistant helping facilitate a business discussion.
 
-Document being negotiated: "${document.name}"
+Document: "${document.name}"
+Context: ${documentSummary}
 
-Document details/context: ${documentSummary}
+The document owner's negotiation preferences: ${instructions}
 
-Your client's INTERNAL parameters (DO NOT reveal these directly): ${instructions}
+Write a friendly, professional email (4-5 paragraphs) that:
+1. Briefly introduces the negotiation (mention it's AI-assisted)
+2. Provides 1-2 sentences about what the document is
+3. **IMPORTANT**: Rewrites the owner's negotiation preferences in natural, specific language
+   - DO include specific numbers, timelines, or terms if provided
+   - Reword them to sound conversational (e.g., "looking for around $X" not just "$X")
+   - Frame them as discussion points, not demands
+4. Links to the document for review
+5. Invites them to share their thoughts
 
-Write a SHORT, direct email message (3-4 short paragraphs max) that:
-1. States the recipient has been invited to review and negotiate terms for the document
-2. Provides a BRIEF 1-2 sentence summary of what the document is about (based on the document details above) - this helps them understand the context
-3. Mentions the general CATEGORIES of terms that need discussion (e.g., "pricing and payment terms", "timeline and deliverables", "scope and responsibilities") WITHOUT revealing specific numbers or constraints from the internal parameters
-4. Invites them to review the full document and share their initial proposal
-5. Signs off as "SolSign AI Agent"
+Tone: Semi-casual business email (friendly but professional)
+Format: Plain HTML paragraphs (<p> tags)
+Start with: "Hi," or "Hello,"
+Sign off: "Looking forward to your thoughts,\nSolSign AI Agent"
 
-CRITICAL RULES:
-- Do NOT use placeholders like [Name], [Counterparty Name], [Your Name], etc.
-- Do NOT reveal specific numbers, amounts, dates, or deadlines from the internal parameters
-- DO include a brief summary of what the document is about (1-2 sentences) so they have context
-- Keep it SHORT and conversational (like a quick email, not a formal letter)
-- Do NOT include "Dear [Name]" or any greeting with placeholders
-- Just start with "Hello," or "Hi," and keep it simple
-- Sign off with "Best regards,\nSolSign AI Agent"
-- Do NOT include the document link (that's added separately)
-
-Write the email body in plain HTML with <p> tags. Be brief and natural.
+Do NOT use placeholders like [Name] or [Company].
 `.trim();
 
       fastify.log.info({ draftPrompt }, 'Requesting AI to draft opening message');
@@ -107,7 +104,7 @@ Write the email body in plain HTML with <p> tags. Be brief and natural.
         aiDraftedMessage = aiDraftedMessage
           .replace(/\[.*?\]/g, '') // Remove [placeholders]
           .replace(/Dear\s*,/gi, 'Hello,') // Fix "Dear ,"
-          .replace(/Sincerely,\s*$/gi, 'Best regards,\nSolSign AI Agent');
+          .replace(/Sincerely,\s*$/gi, 'Looking forward to your thoughts,\nSolSign AI Agent');
         
         fastify.log.info({ 
           aiDraftedMessageLength: aiDraftedMessage.length 
@@ -121,11 +118,11 @@ Write the email body in plain HTML with <p> tags. Be brief and natural.
           : documentSummary;
         
         aiDraftedMessage = `
-          <p>Hello,</p>
-          <p>You have been invited to review and negotiate the terms for <strong>${document.name}</strong>.</p>
+          <p>Hi,</p>
+          <p>You've been invited to review and negotiate <strong>${document.name}</strong>. This is an AI-assisted negotiation on behalf of the document owner.</p>
           <p><strong>About this document:</strong> ${summaryForEmail}</p>
-          <p>Please review the full document using the link below and share your initial thoughts or proposal. We're looking forward to reaching an agreement that works for both parties.</p>
-          <p>Best regards,<br>SolSign AI Agent</p>
+          <p>Please take a look at the document linked below. I'd love to hear your thoughts on the terms and see if we can reach an agreement that works for everyone.</p>
+          <p>Looking forward to your thoughts,<br>SolSign AI Agent</p>
         `;
       }
       
@@ -134,68 +131,28 @@ Write the email body in plain HTML with <p> tags. Be brief and natural.
         <html>
         <head>
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 8px 8px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .message { background: white; padding: 20px; border-radius: 5px; margin: 20px 0; }
-            .document-link { background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px 0; font-weight: bold; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+            .message { margin: 20px 0; }
+            .document-link { display: inline-block; background: #667eea; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 15px 0; }
             .document-link:hover { background: #5568d3; }
-            .document-box { background: white; padding: 20px; border-left: 4px solid #667eea; margin: 20px 0; }
-            .document-info { background: #f0f4ff; padding: 15px; border-radius: 5px; margin: 20px 0; font-size: 14px; }
-            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+            .note { font-size: 13px; color: #666; margin-top: 30px; padding-top: 15px; border-top: 1px solid #eee; }
           </style>
         </head>
         <body>
-          <div class="container">
-            <div class="header">
-              <h1>🤖 AI Contract Negotiation</h1>
-              <p>Document: <strong>${document.name}</strong></p>
-            </div>
-            <div class="content">
-              <div class="message">
-                ${aiDraftedMessage}
-              </div>
-              
-              ${template?.extracted_data_json ? `
-              <div class="document-info">
-                <p><strong>📋 Document Overview:</strong></p>
-                ${template.extracted_data_json.fields?.length > 0 ? `
-                  <p><strong>Key Information Required:</strong> ${template.extracted_data_json.fields.slice(0, 5).map((f: any) => f.label).join(', ')}${template.extracted_data_json.fields.length > 5 ? ` and ${template.extracted_data_json.fields.length - 5} more` : ''}</p>
-                ` : ''}
-                ${template.extracted_data_json.clauses?.length > 0 ? `
-                  <p><strong>Main Clauses:</strong> ${template.extracted_data_json.clauses.slice(0, 3).map((c: any) => c.type).join(', ')}${template.extracted_data_json.clauses.length > 3 ? ` and ${template.extracted_data_json.clauses.length - 3} more` : ''}</p>
-                ` : ''}
-              </div>
-              ` : ''}
-              
-              <div class="document-box">
-                <p><strong>📄 Document to Review:</strong></p>
-                <p>${document.name}</p>
-                <a href="${documentViewUrl}" class="document-link" target="_blank">
-                  View Document →
-                </a>
-                <p style="font-size: 12px; color: #666; margin-top: 10px;">
-                  Click the button above to review the full document before responding.
-                </p>
-              </div>
-              
-              <p><strong>💬 How to Proceed:</strong></p>
-              <ol>
-                <li>Review the document using the link above</li>
-                <li>Reply to this email with your thoughts, questions, or proposals</li>
-                <li>An AI agent will respond within minutes to facilitate the negotiation</li>
-                <li>Continue the conversation via email until we reach an agreement</li>
-              </ol>
-              
-              <p><strong>Simply reply to this email to continue the conversation.</strong></p>
-              
-              <div class="footer">
-                <p>This is an AI-powered negotiation system by SolSign.</p>
-                <p>Negotiation ID: ${negotiation.id}</p>
-                <p>Document Link: ${documentViewUrl}</p>
-              </div>
-            </div>
+          <div class="message">
+            ${aiDraftedMessage}
+          </div>
+          
+          <p><strong>Document to Review:</strong><br>
+          ${document.name}</p>
+          
+          <a href="${documentViewUrl}" class="document-link" target="_blank">View Document</a>
+          
+          <p>Please review the document and reply to this email with your thoughts or any questions you have. I'll respond promptly to keep the conversation moving.</p>
+          
+          <div class="note">
+            <p><em>Note: This is an automated negotiation system powered by SolSign AI. All responses are handled by an AI agent on behalf of the document owner.</em></p>
+            <p style="font-size: 12px;">Negotiation ID: ${negotiation.id}</p>
           </div>
         </body>
         </html>

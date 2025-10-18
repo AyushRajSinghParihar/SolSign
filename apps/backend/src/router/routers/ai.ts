@@ -95,7 +95,8 @@ export const aiRouter = t.router({
         console.log('[AI] Successfully generated contract text.')
 
         // Save the new document to the database
-        const documentName = `AI: ${originalPrompt.substring(0, 40)}...`
+        // Use the full prompt as the document name with "AI-Generated: " prefix
+        const documentName = `AI-Generated: ${originalPrompt}`
         const { data: newDocument, error: dbError } = await supabaseAdmin
           .from('documents')
           .insert({

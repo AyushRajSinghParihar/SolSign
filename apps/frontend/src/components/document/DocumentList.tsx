@@ -42,7 +42,7 @@ export function DocumentList() {
                   <TableCell>
                     <Link
                       to={`/documents/${doc.id}`}
-                      className="font-medium text-primary hover:underline"
+                      className="font-medium text-primary hover:underline break-words block"
                     >
                       {doc.name}
                     </Link>

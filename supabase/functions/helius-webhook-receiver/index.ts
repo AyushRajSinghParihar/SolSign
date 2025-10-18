@@ -226,6 +226,9 @@ serve(async (req) => {
     let arweaveTx: string;
     let ownerWalletAddress: string;
 
+    // Initialize the Borsh coder with our IDL
+    const coder = new BorshAccountsCoder(IDL as any);
+
    try {
   // Pass the FULL buffer - the coder will validate and strip the discriminator
   const decodedAccount = coder.decode('DocNft', accountDataBuffer);

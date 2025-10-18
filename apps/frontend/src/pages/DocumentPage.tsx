@@ -115,8 +115,12 @@ export function DocumentPage() {
               <DocumentViewer storagePath={template.storage_path} />
             ) : (
               <Card className="h-full overflow-y-auto">
-                <CardContent className="prose dark:prose-invert max-w-none p-6">
-                  <ReactMarkdown>{document.content || ''}</ReactMarkdown>
+                <CardContent className="prose dark:prose-invert max-w-none p-6 break-words">
+                  {document.content ? (
+                    <ReactMarkdown>{document.content}</ReactMarkdown>
+                  ) : (
+                    <p className="text-muted-foreground">No content available for this document.</p>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -124,7 +128,7 @@ export function DocumentPage() {
 
           {/* Right Panel: All metadata and forms in a single scrolling container */}
           <div className="h-full overflow-y-auto space-y-6">
-            <h1 className="text-3xl font-bold">{document.name}</h1>
+            <h1 className="text-3xl font-bold break-words overflow-wrap-anywhere">{document.name}</h1>
             <p className="text-muted-foreground">
               {template
                 ? 'Review the document and fill in the required fields.'
