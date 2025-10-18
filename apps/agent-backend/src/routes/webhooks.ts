@@ -166,6 +166,9 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       }
       const ownerEmail = (negotiation as any)?.owner?.email;
       const counterpartyEmail = negotiation.counterparty_email;
+      // Build document view URL
+      const appBaseUrl = process.env.APP_BASE_URL || 'https://solsignai.com';
+      const documentViewUrl = `${appBaseUrl}/documents/${negotiation.document_id}`;
       log.info({
         durMs: durationMs(fetchStart),
         status: negotiation.status,
@@ -233,6 +236,9 @@ The full conversation history is:
   : `The latest message from the counterparty is: "${newHistoryEntry.content}"`
 }
 
+**IMPORTANT**: The document being negotiated is available at: ${documentViewUrl}
+If you need to reference the document or include a link in your response, use this exact URL.
+
 Analyze the latest message in the context of the user's goals and the entire conversation.
 
 CRITICAL: Your user has set specific parameters for this negotiation. These parameters represent their requirements and constraints. You MUST respect these parameters at all times.
@@ -278,10 +284,19 @@ Respond ONLY with a valid JSON object in the format:
       }
 
       const { action, responseText: emailResponseText } = aiResponse;
+      
+      // Ensure ACCEPT emails always include the document link
+      if (action === 'ACCEPT') {
+        // If AI didn't include the link, append it
+        if (!emailResponseText.includes(documentViewUrl) && !emailResponseText.includes('http')) {
+          aiResponse.responseText = emailResponseText + `\n\nYou can review the final document here: ${documentViewUrl}`;
+        }
+      }
+      
       log.info({
         durMs: durationMs(llmStart),
         action,
-        responseTextLen: emailResponseText?.length || 0,
+        responseTextLen: aiResponse.responseText?.length || 0,
       }, 'Gemini decision computed');
 
       // 7) EXECUTE ACTION (send emails)
