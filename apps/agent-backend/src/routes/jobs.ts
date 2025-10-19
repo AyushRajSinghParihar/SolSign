@@ -43,6 +43,7 @@ const jobRoutes: FastifyPluginAsync = async (fastify) => {
         documentViewUrl
       }, 'Extracted instructions for email.');
       
+      
       // Extract document context for AI - get more details
       let documentSummary = '';
       const template = (document as any).template;
