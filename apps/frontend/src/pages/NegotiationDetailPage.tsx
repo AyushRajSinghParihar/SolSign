@@ -49,7 +49,10 @@ export function NegotiationDetailPage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-3xl font-bold">Negotiation Details</h1>
-          <p className="text-muted-foreground">Conversation with {negotiation.counterparty_email}</p>
+          <p className="text-muted-foreground">
+            <strong>You're negotiating with:</strong> {negotiation.counterparty_email}<br/>
+            <strong>AI Agent Status:</strong> {negotiation.status === 'escalated' ? 'Waiting for your input' : 'Actively negotiating'}
+          </p>
         </div>
         <Badge className="text-lg">{negotiation.status}</Badge>
       </div>
@@ -75,15 +78,36 @@ export function NegotiationDetailPage() {
       {/* Chat History UI */}
       <div className="space-y-6">
         <h2 className="text-xl font-semibold">Conversation History</h2>
-        {negotiation.history.map((entry, index) => (
-          <div key={index} className={`flex ${entry.role === 'user' || entry.role === 'agent' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-lg p-4 rounded-lg ${entry.role === 'user' || entry.role === 'agent' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-              <p className="font-bold capitalize">{entry.role}</p>
-              <p className="whitespace-pre-wrap">{entry.content}</p>
-              <p className="text-xs opacity-70 mt-2">{new Date(entry.timestamp).toLocaleString()}</p>
+        {negotiation.history.map((entry, index) => {
+          // Create clearer labels
+          let displayRole = entry.role;
+          let displayBgColor = 'bg-muted';
+          let displayAlignment = 'justify-start';
+          
+          if (entry.role === 'owner') {
+            displayRole = 'You (Document Owner)';
+            displayBgColor = 'bg-blue-100 dark:bg-blue-900';
+            displayAlignment = 'justify-end';
+          } else if (entry.role === 'agent') {
+            displayRole = 'AI Agent (representing you)';
+            displayBgColor = 'bg-primary text-primary-foreground';
+            displayAlignment = 'justify-end';
+          } else if (entry.role === 'counterparty') {
+            displayRole = `Counterparty (${negotiation.counterparty_email})`;
+            displayBgColor = 'bg-muted';
+            displayAlignment = 'justify-start';
+          }
+          
+          return (
+            <div key={index} className={`flex ${displayAlignment}`}>
+              <div className={`max-w-lg p-4 rounded-lg ${displayBgColor}`}>
+                <p className="font-bold">{displayRole}</p>
+                <p className="whitespace-pre-wrap">{entry.content}</p>
+                <p className="text-xs opacity-70 mt-2">{new Date(entry.timestamp).toLocaleString()}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   )

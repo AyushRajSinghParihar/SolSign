@@ -226,8 +226,14 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       // Section 6: GEMINI DECISION (Updated to be generic)
       const geminiPrompt = `
 
-You are an AI contract negotiation agent.
-Your user's goals are: ${JSON.stringify(negotiation.parameters)}
+You are an AI contract negotiation agent representing the document owner.
+
+**YOUR CLIENT (Document Owner):** ${ownerEmail || 'Document Owner'}
+**COUNTERPARTY (Negotiating With):** ${counterpartyEmail || 'Counterparty'}
+**YOUR ROLE:** You represent your client and negotiate on their behalf.
+
+Your client's goals and requirements are: ${JSON.stringify(negotiation.parameters)}
+
 The full conversation history is: 
  ${JSON.stringify(updatedHistory)}
 

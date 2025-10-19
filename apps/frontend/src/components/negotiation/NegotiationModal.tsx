@@ -100,13 +100,13 @@ export function NegotiationModal({ documentId, isOpen, onOpenChange }: Negotiati
                   <FormLabel>Negotiation Goals & Instructions</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="e.g., My minimum acceptable payment is $5,000. I cannot accept payment terms longer than 30 days. The liability clause is non-negotiable."
+                      placeholder="e.g., My minimum price is $5,000 - do not go below this. Payment must be within 15 days. The intellectual property clause is non-negotiable."
                       className="min-h-[120px]"
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Provide clear, specific instructions for your agent.
+                    Be specific! Include numbers, deadlines, and non-negotiables. The AI will rephrase your terms naturally when contacting the counterparty.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

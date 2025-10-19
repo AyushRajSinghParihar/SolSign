@@ -10,6 +10,7 @@ import { DocumentPage } from "./pages/DocumentPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { GenerateDocumentPage } from "./pages/GenerateDocumentPage";
 import { NegotiationsListPage } from "./pages/NegotiationsListPage";
+import { NegotiationDetailPage } from "./pages/NegotiationDetailPage";
 import { AuthInitializer } from "./components/AuthInitializer";
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="documents/generate" element={<GenerateDocumentPage />} />
               <Route path="negotiations" element={<NegotiationsListPage />} />
+              <Route path="negotiations/:id" element={<NegotiationDetailPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
