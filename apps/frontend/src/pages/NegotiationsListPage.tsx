@@ -44,7 +44,7 @@ export function NegotiationsListPage() {
                   <TableRow key={neg.id}>
                     <TableCell>
                       <Link to={`/negotiations/${neg.id}`} className="font-medium text-primary hover:underline">
-                        {neg.document?.name || 'Unknown Document'}
+                        {Array.isArray(neg.document) && neg.document[0]?.name || 'Unknown Document'}
                       </Link>
                     </TableCell>
                     <TableCell>{neg.counterparty_email}</TableCell>

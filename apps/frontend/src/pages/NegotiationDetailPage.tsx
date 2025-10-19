@@ -78,7 +78,7 @@ export function NegotiationDetailPage() {
       {/* Chat History UI */}
       <div className="space-y-6">
         <h2 className="text-xl font-semibold">Conversation History</h2>
-        {negotiation.history.map((entry, index) => {
+        {negotiation.history.map((entry: { role: string; content: string; timestamp: string }, index: number) => {
           // Create clearer labels
           let displayRole = entry.role;
           let displayBgColor = 'bg-muted';
