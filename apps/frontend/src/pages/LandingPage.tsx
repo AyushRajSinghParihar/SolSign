@@ -36,7 +36,7 @@ export function LandingPage() {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between">
+        <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
           <div className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
             <span className="font-bold text-xl">SolSignAI</span>
@@ -46,7 +46,7 @@ export function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="container py-24 space-y-8 text-center">
+      <section className="container mx-auto px-4 md:px-6 py-24 space-y-8 text-center">
         <Badge variant="secondary" className="mx-auto">
           <Zap className="h-3 w-3 mr-1" />
           Powered by AI + Blockchain
@@ -88,7 +88,7 @@ export function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section id="features" className="container py-24">
+      <section id="features" className="container mx-auto px-4 md:px-6 py-24">
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">Why SolSignAI?</h2>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
@@ -184,8 +184,9 @@ export function LandingPage() {
       </section>
 
       {/* How It Works Section */}
-      <section className="container py-24 bg-muted/30">
-        <div className="text-center mb-16">
+      <section className="py-24 bg-muted/30">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="text-center mb-16">
           <h2 className="text-3xl font-bold mb-4">How It Works</h2>
           <p className="text-muted-foreground text-lg">
             Three simple steps to secure document signing
@@ -223,10 +224,11 @@ export function LandingPage() {
             </p>
           </div>
         </div>
+        </div>
       </section>
 
       {/* CTA Section */}
-      <section className="container py-24 text-center">
+      <section className="container mx-auto px-4 md:px-6 py-24 text-center">
         <Card className="border-primary/50 bg-gradient-to-br from-primary/5 to-primary/10 max-w-4xl mx-auto">
           <CardContent className="py-16 space-y-6">
             <h2 className="text-4xl font-bold">
@@ -245,7 +247,7 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t py-12 bg-muted/10">
-        <div className="container">
+        <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
