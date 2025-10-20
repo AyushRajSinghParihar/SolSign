@@ -89,8 +89,7 @@ Copy `.env.example` to `.env` and configure:
 
 ### Required Variables:
 - `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_SERVICE_KEY` - Supabase anon key
-- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (bypasses RLS)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (bypasses RLS for system operations)
 - `SUPABASE_WEBHOOK_SECRET` - Secret for authenticating Supabase webhooks
 - `SENDGRID_API_KEY` - SendGrid API key for sending emails
 - `VERIFIED_FROM_EMAIL` - Verified sender email in SendGrid

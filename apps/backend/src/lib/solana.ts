@@ -9,17 +9,35 @@ const getSolanaConnection = () => {
   const rpcUrl = process.env.SOLANA_RPC_ENDPOINT;
   if (!rpcUrl) throw new Error("Solana: SOLANA_RPC_ENDPOINT is not set.");
   const connection = new Connection(rpcUrl, "confirmed");
-  const keypairPath = process.env.PAYER_KEYPAIR_PATH;
-  if (!keypairPath) throw new Error("Solana: PAYER_KEYPAIR_PATH is not set.");
-  if (!existsSync(keypairPath)) {
-    throw new Error(`Solana: Keypair file not found at path: ${keypairPath}`);
+  
+  // Load keypair: try file path first (local dev), fallback to JSON env var (cloud deployment)
+  let payerBytes: number[];
+  
+  if (process.env.PAYER_KEYPAIR_PATH) {
+    // Local development: read from file
+    const keypairPath = process.env.PAYER_KEYPAIR_PATH;
+    console.log(`Solana: Reading keypair from file: ${keypairPath}`);
+    if (!existsSync(keypairPath)) {
+      throw new Error(`Solana: Keypair file not found at path: ${keypairPath}`);
+    }
+    const keypairFileContent = readFileSync(keypairPath, "utf-8");
+    if (!keypairFileContent) {
+      throw new Error(`Solana: Keypair file is empty at path: ${keypairPath}`);
+    }
+    payerBytes = JSON.parse(keypairFileContent);
+  } else if (process.env.PAYER_KEYPAIR_JSON) {
+    // Cloud deployment: read from environment variable
+    console.log("Solana: Reading keypair from PAYER_KEYPAIR_JSON env var");
+    payerBytes = JSON.parse(process.env.PAYER_KEYPAIR_JSON);
+  } else {
+    throw new Error(
+      "Solana: Neither PAYER_KEYPAIR_PATH nor PAYER_KEYPAIR_JSON is set. " +
+      "Set PAYER_KEYPAIR_PATH for local dev or PAYER_KEYPAIR_JSON for cloud deployment."
+    );
   }
-  const keypairFileContent = readFileSync(keypairPath, "utf-8");
-  if (!keypairFileContent) {
-    throw new Error(`Solana: Keypair file is empty at path: ${keypairPath}`);
-  }
-  const payerBytes = JSON.parse(keypairFileContent);
+  
   const payer = Keypair.fromSecretKey(Buffer.from(payerBytes));
+  console.log(`Solana: Successfully loaded keypair. Public key: ${payer.publicKey.toBase58()}`);
   return { connection, payer };
 };
 

@@ -3,21 +3,32 @@ import { readFileSync, existsSync } from "fs";
 
 // Helper function to get the Irys client instance
 const getIrys = () => {
-  const keypairPath = process.env.PAYER_KEYPAIR_PATH;
-  if (!keypairPath) {
-    throw new Error("PAYER_KEYPAIR_PATH environment variable not set.");
+  // Load keypair: try file path first (local dev), fallback to JSON env var (cloud deployment)
+  let solanaKeypair: number[];
+  
+  if (process.env.PAYER_KEYPAIR_PATH) {
+    // Local development: read from file
+    const keypairPath = process.env.PAYER_KEYPAIR_PATH;
+    console.log(`Irys: Reading keypair from file: ${keypairPath}`);
+    if (!existsSync(keypairPath)) {
+      throw new Error(`Irys: Keypair file not found at path: ${keypairPath}`);
+    }
+    const keypairFileContent = readFileSync(keypairPath, "utf-8");
+    if (!keypairFileContent) {
+      throw new Error(`Irys: Keypair file is empty at path: ${keypairPath}`);
+    }
+    solanaKeypair = JSON.parse(keypairFileContent);
+  } else if (process.env.PAYER_KEYPAIR_JSON) {
+    // Cloud deployment: read from environment variable
+    console.log("Irys: Reading keypair from PAYER_KEYPAIR_JSON env var");
+    solanaKeypair = JSON.parse(process.env.PAYER_KEYPAIR_JSON);
+  } else {
+    throw new Error(
+      "Irys: Neither PAYER_KEYPAIR_PATH nor PAYER_KEYPAIR_JSON is set. " +
+      "Set PAYER_KEYPAIR_PATH for local dev or PAYER_KEYPAIR_JSON for cloud deployment."
+    );
   }
 
-  // Irys expects the raw private key bytes, so we read the keypair file
-  console.log(`Irys: Attempting to read keypair from: ${keypairPath}`);
-  if (!existsSync(keypairPath)) {
-    throw new Error(`Irys: Keypair file not found at path: ${keypairPath}`);
-  }
-  const keypairFileContent = readFileSync(keypairPath, "utf-8");
-  if (!keypairFileContent) {
-    throw new Error(`Irys: Keypair file is empty at path: ${keypairPath}`);
-  }
-  const solanaKeypair = JSON.parse(keypairFileContent);
   const privateKey = Buffer.from(solanaKeypair);
 
   // Connect to the Irys Devnet node

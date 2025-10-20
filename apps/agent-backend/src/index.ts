@@ -9,7 +9,6 @@ import jobRoutes from './routes/jobs.js';
 // Validate required environment variables at startup
 const requiredEnvVars = [
   'SUPABASE_URL',
-  'SUPABASE_SERVICE_KEY',
   'SUPABASE_SERVICE_ROLE_KEY',
   'SENDGRID_API_KEY',
   'GEMINI_API_KEY',
@@ -42,7 +41,7 @@ const fastify = Fastify({
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 fastify.decorate('supabase', supabase);
