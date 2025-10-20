@@ -12,7 +12,7 @@ const start = async () => {
   try {
     // @ts-ignore - Type compatibility issue between Fastify versions
     await server.register(cors, {
-      origin: "*", // In production, lock this down to your Vercel URL
+      origin: "https://solsignai.com/", // Lock to your Vercel domain
     });
 
     // @ts-ignore - Type compatibility issue between Fastify versions
