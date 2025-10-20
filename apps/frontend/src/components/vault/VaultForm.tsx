@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { encryptData } from "@/lib/crypto";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   fullName: z.string().min(2, { message: "Full name is required." }),
@@ -89,7 +90,14 @@ export function VaultForm({ onSuccess, getKey }: VaultFormProps) {
               )}
             />
             <Button type="submit" disabled={createItemMutation.isPending}>
-              {createItemMutation.isPending ? "Saving..." : "Save to Vault"}
+              {createItemMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save to Vault"
+              )}
             </Button>
           </form>
         </Form>

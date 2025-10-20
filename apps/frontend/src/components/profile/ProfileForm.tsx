@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { trpc } from '@/lib/trpc'
 import { toast } from 'sonner'
 import type { RouterOutputs } from '@repo/api'
+import { Loader2 } from 'lucide-react'
 
 type UserProfile = RouterOutputs['user']['getProfile']
 
@@ -83,7 +84,14 @@ export function ProfileForm({ userProfile }: { userProfile: UserProfile }) {
               )}
             />
             <Button type="submit" disabled={updateEmailMutation.isPending}>
-              {updateEmailMutation.isPending ? 'Saving...' : 'Save Changes'}
+              {updateEmailMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Changes'
+              )}
             </Button>
           </form>
         </Form>

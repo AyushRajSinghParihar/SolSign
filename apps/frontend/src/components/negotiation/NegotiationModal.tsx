@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { Loader2 } from 'lucide-react'
 
 // Define the validation schema for our form
 const formSchema = z.object({
@@ -114,7 +115,14 @@ export function NegotiationModal({ documentId, isOpen, onOpenChange }: Negotiati
             />
             <DialogFooter>
               <Button type="submit" disabled={startNegotiationMutation.isPending}>
-                {startNegotiationMutation.isPending ? 'Initiating...' : 'Start Negotiation'}
+                {startNegotiationMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Initiating...
+                  </>
+                ) : (
+                  'Start Negotiation'
+                )}
               </Button>
             </DialogFooter>
           </form>

@@ -12,6 +12,7 @@ import { GenerateDocumentPage } from "./pages/GenerateDocumentPage";
 import { NegotiationsListPage } from "./pages/NegotiationsListPage";
 import { NegotiationDetailPage } from "./pages/NegotiationDetailPage";
 import { AuthInitializer } from "./components/AuthInitializer";
+import { LandingPage } from "./pages/LandingPage";
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
       <AuthInitializer>
         <BrowserRouter>
           <Routes>
+            <Route path="/landing" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route
               path="/"

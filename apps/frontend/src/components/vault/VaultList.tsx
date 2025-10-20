@@ -11,6 +11,9 @@ import {
   CardTitle,
 } from "../ui/card";
 import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
+import { EmptyState } from "../ui/empty-state";
+import { Database } from "lucide-react";
 
 type RouterOutput = inferRouterOutputs<AppRouter>;
 type VaultItem = RouterOutput["vault"]["getItems"][0];
@@ -102,8 +105,21 @@ const VaultItemCard = ({
 };
 
 export function VaultList({ query, getKey }: VaultListProps) {
-  if (query.isLoading) return <div>Loading vault items...</div>;
-  if (query.isError) return <div>Error: {query.error.message}</div>;
+  if (query.isLoading) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Your Vault Items</h2>
+        <div className="space-y-3">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
+      </div>
+    );
+  }
+  
+  if (query.isError) {
+    return <div>Error: {query.error.message}</div>;
+  }
 
   return (
     <div className="space-y-4">
@@ -113,9 +129,11 @@ export function VaultList({ query, getKey }: VaultListProps) {
           <VaultItemCard key={item.id} item={item} getKey={getKey} />
         ))
       ) : (
-        <p className="text-muted-foreground">
-          Your vault is empty. Add an item above.
-        </p>
+        <EmptyState
+          icon={Database}
+          title="Your Vault is Empty"
+          description="Add your personal or business information to auto-fill documents quickly and securely."
+        />
       )}
     </div>
   );

@@ -123,4 +123,58 @@ export const aiRouter = t.router({
         })
       }
     }),
+
+  /**
+   * Takes a clause text and returns a plain-language explanation
+   * using AI to help users understand legal jargon.
+   */
+  explainClause: protectedProcedure
+    .input(
+      z.object({
+        clauseText: z.string().min(20, 'Text must be at least 20 characters long.').max(5000, 'Text must not exceed 5000 characters.'),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { clauseText } = input
+
+      const prompt = `You are an expert legal translator specialized in explaining complex legal language to non-lawyers.
+
+**CRITICAL SAFETY REQUIREMENT:** You MUST begin your response with this exact disclaimer:
+
+"⚠️ DISCLAIMER: I am an AI assistant and not a licensed attorney. This explanation is for educational purposes only and does not constitute legal advice. For any legal concerns or binding interpretations, please consult a qualified legal professional."
+
+After the disclaimer, provide a clear, plain-language explanation of the following legal text:
+
+---
+${clauseText}
+---
+
+Your explanation should:
+1. Identify the type of clause (e.g., liability waiver, payment terms, confidentiality)
+2. Explain what it means in simple terms
+3. Highlight key obligations, rights, or restrictions for the signer
+4. Note any potential risks or important considerations
+5. Use analogies or examples where helpful
+
+Keep your explanation concise but thorough (2-4 paragraphs).`
+
+      try {
+        console.log('[AI] Generating clause explanation...')
+        const result = await model.generateContent(prompt)
+        const explanation = result.response.text()
+
+        if (!explanation) {
+          throw new Error('AI returned empty explanation')
+        }
+
+        console.log('[AI] Successfully generated clause explanation')
+        return { explanation }
+      } catch (error) {
+        console.error('Error during AI clause explanation:', error)
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to explain clause: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        })
+      }
+    }),
 })

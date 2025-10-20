@@ -9,14 +9,30 @@ import {
   TableRow,
 } from "../ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Skeleton } from "../ui/skeleton";
+import { EmptyState } from "../ui/empty-state";
+import { FileText } from "lucide-react";
 
 export function DocumentList() {
+  const navigate = useNavigate();
   const getDocumentsQuery = trpc.documents.getAll.useQuery();
 
   if (getDocumentsQuery.isLoading) {
-    // You can create a skeleton for this too!
-    return <div>Loading your documents...</div>;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Documents</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   const documents = getDocumentsQuery.data || [];
@@ -63,8 +79,16 @@ export function DocumentList() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center">
-                  You haven't created any documents yet.
+                <TableCell colSpan={3}>
+                  <EmptyState
+                    icon={FileText}
+                    title="No Documents Yet"
+                    description="Start by generating a contract with AI or uploading a template document."
+                    action={{
+                      label: "Generate Document",
+                      onClick: () => navigate('/documents/generate')
+                    }}
+                  />
                 </TableCell>
               </TableRow>
             )}

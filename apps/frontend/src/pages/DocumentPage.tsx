@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { NegotiationModal } from '@/components/negotiation/NegotiationModal'
+import { ExplainClauseModal } from '@/components/document/ExplainClauseModal'
+import { TextSelectionToolbar } from '@/components/document/TextSelectionToolbar'
 
 export function DocumentPage() {
   const { id } = useParams<{ id: string }>()
@@ -21,6 +23,13 @@ export function DocumentPage() {
   const [isInviteOpen, setInviteOpen] = useState(false)
   const { user: currentUser } = useAuth()
   const [isNegotiationModalOpen, setNegotiationModalOpen] = useState(false)
+  const [explainModalOpen, setExplainModalOpen] = useState(false)
+  const [selectedClauseText, setSelectedClauseText] = useState('')
+
+  const handleExplainRequest = (text: string) => {
+    setSelectedClauseText(text)
+    setExplainModalOpen(true)
+  }
 
   const getDocumentQuery = trpc.documents.getById.useQuery(
     { id: id! },
@@ -114,15 +123,18 @@ export function DocumentPage() {
             {template ? (
               <DocumentViewer storagePath={template.storage_path} />
             ) : (
-              <Card className="h-full overflow-y-auto">
-                <CardContent className="prose dark:prose-invert max-w-none p-6 break-words">
-                  {document.content ? (
-                    <ReactMarkdown>{document.content}</ReactMarkdown>
-                  ) : (
-                    <p className="text-muted-foreground">No content available for this document.</p>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="relative h-full">
+                <TextSelectionToolbar onExplain={handleExplainRequest} />
+                <Card className="h-full overflow-y-auto">
+                  <CardContent className="prose dark:prose-invert max-w-none p-6 break-words">
+                    {document.content ? (
+                      <ReactMarkdown>{document.content}</ReactMarkdown>
+                    ) : (
+                      <p className="text-muted-foreground">No content available for this document.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
             )}
           </div>
 
@@ -171,6 +183,12 @@ export function DocumentPage() {
         documentId={document.id}
         isOpen={isInviteOpen}
         onOpenChange={setInviteOpen}
+      />
+
+      <ExplainClauseModal
+        clauseText={selectedClauseText}
+        isOpen={explainModalOpen}
+        onOpenChange={setExplainModalOpen}
       />
     </>
   )

@@ -23,6 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { TemplateListSkeleton } from "./TemplateListSkeleton";
+import { EmptyState } from "../ui/empty-state";
+import { FileUp } from "lucide-react";
 
 /**
  * A dialog component for creating a new document from a template.
@@ -191,8 +193,16 @@ export function TemplateList() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      No templates found. Upload a document to get started.
+                    <TableCell colSpan={5}>
+                      <EmptyState
+                        icon={FileUp}
+                        title="No Templates Available"
+                        description="Upload your first document template to get started. PDFs with forms work best."
+                        action={{
+                          label: "Upload Template",
+                          onClick: () => window.location.href = '/documents/new'
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 )}

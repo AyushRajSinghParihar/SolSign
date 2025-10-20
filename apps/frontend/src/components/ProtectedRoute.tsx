@@ -7,10 +7,10 @@ export const ProtectedRoute = ({ children }: { children: ReactElement }) => {
   const location = useLocation();
 
   if (!token) {
-    // User not authenticated, redirect to login page.
+    // User not authenticated, redirect to landing page.
     // Crucially, we pass the current location in the `state` object.
     // This "remembers" where the user was trying to go.
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/landing" state={{ from: location }} replace />;
   }
 
   return children;

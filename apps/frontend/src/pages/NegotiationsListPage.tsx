@@ -2,10 +2,13 @@ import { trpc } from '@/lib/trpc'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { MessageSquare } from 'lucide-react'
 
 export function NegotiationsListPage() {
+  const navigate = useNavigate()
   const getNegotiationsQuery = trpc.agent.getAllNegotiations.useQuery()
 
   return (
@@ -54,7 +57,19 @@ export function NegotiationsListPage() {
                 ))
               ) : (
                 !getNegotiationsQuery.isLoading && (
-                  <TableRow><TableCell colSpan={4} className="h-24 text-center">No negotiations found.</TableCell></TableRow>
+                  <TableRow>
+                    <TableCell colSpan={4}>
+                      <EmptyState
+                        icon={MessageSquare}
+                        title="No Active Negotiations"
+                        description="Deploy an AI agent to negotiate contracts on your behalf. Set your terms and let AI handle the back-and-forth."
+                        action={{
+                          label: "Go to Documents",
+                          onClick: () => navigate('/')
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
                 )
               )}
             </TableBody>
