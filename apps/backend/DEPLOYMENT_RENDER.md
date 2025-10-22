@@ -72,6 +72,21 @@ PORT=3001
 NODE_ENV=production
 ```
 
+### Frontend CORS Configuration
+
+**IMPORTANT**: Add your frontend URLs to allow CORS requests. Use comma-separated values for multiple domains:
+
+```bash
+FRONTEND_URL=https://www.solsignai.com,https://solsignai.com
+```
+
+For development/testing, you can also include:
+```bash
+FRONTEND_URL=https://www.solsignai.com,https://solsignai.com,http://localhost:5173
+```
+
+**Note**: This replaces the hardcoded CORS origin in the code and allows both www and non-www subdomains.
+
 ### Supabase Configuration
 
 ```bash

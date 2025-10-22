@@ -8,6 +8,7 @@ Complete guide for deploying the SolSign React frontend to Vercel.
 - [ ] GitHub repository access
 - [ ] Backend deployed to Render (see `apps/backend/DEPLOYMENT_RENDER.md`)
 - [ ] Correct Supabase anon key (NOT service_role key!)
+- [ ] `vercel.json` file exists in `apps/frontend/` directory (for SPA routing)
 
 ## 🚨 Critical: Fix Security Issue First
 
@@ -21,6 +22,49 @@ Your current `.env` file has the **service_role key** in `VITE_SUPABASE_ANON_KEY
 4. It should start with `eyJ...` but be different from your service_role key
 
 **Keep this value ready** - you'll need it in the next steps.
+
+## 📄 Important: vercel.json Configuration
+
+The repository now includes a `vercel.json` file in `apps/frontend/` that handles:
+
+1. **SPA Routing**: Redirects all routes to `index.html` for client-side routing
+2. **Security Headers**: Adds security headers to all responses
+
+This file fixes the 404 errors when navigating directly to routes like `/landing` or `/login`.
+
+**File location**: `apps/frontend/vercel.json`
+
+```json
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Vercel will automatically detect and use this configuration file.
 
 ## 🚀 Step 1: Connect Repository to Vercel
 
@@ -95,19 +139,25 @@ VITE_SUPABASE_ANON_KEY
 VITE_API_URL
 ```
 
-**Value** (if backend is deployed):
+**Value** (use your actual backend URL):
 ```
-https://solsign-backend.onrender.com/trpc
+https://solsign-1.onrender.com/trpc
 ```
 
-**Value** (if backend is still local):
+**IMPORTANT**: 
+- Replace with your actual Render backend URL
+- The URL MUST end with `/trpc` (the tRPC endpoint)
+- Make sure there's NO trailing slash after `/trpc`
+- Example: `https://your-backend-name.onrender.com/trpc`
+
+**Value** (if backend is still local for testing):
 ```
 http://localhost:3001/trpc
 ```
 
 **Apply to**: ✅ Production, ✅ Preview, ✅ Development
 
-**Note**: You'll update this later once your backend is deployed to Render.
+**Note**: This variable is critical for the frontend to communicate with the backend. Without it, all API calls will fail.
 
 ---
 
@@ -318,9 +368,28 @@ npm run build
 
 ### CORS Errors in Browser
 
-**Error: "CORS policy: No 'Access-Control-Allow-Origin'"**
+**Error: "CORS policy: No 'Access-Control-Allow-Origin'" or "Access-Control-Allow-Origin' header has a value that is not equal to the supplied origin"**
 
-**Fix**: Backend needs to allow your Vercel domain (see Step 8).
+This happens when the backend doesn't recognize your frontend's origin.
+
+**Fix**:
+1. Check your backend's `FRONTEND_URL` environment variable on Render
+2. Make sure it includes BOTH:
+   - `https://www.solsignai.com` (with www)
+   - `https://solsignai.com` (without www)
+3. Use comma-separated values: `FRONTEND_URL=https://www.solsignai.com,https://solsignai.com`
+4. Check backend logs on Render to see what origin is being sent
+5. The backend will now log: `🌐 CORS request from origin: <your-origin>`
+6. If origin doesn't match, update `FRONTEND_URL` and redeploy backend
+
+**How to update backend CORS**:
+1. Go to Render Dashboard → Your Backend Service
+2. Go to **Environment** tab
+3. Add/update `FRONTEND_URL` variable
+4. Click **Save Changes**
+5. Render will auto-redeploy
+
+**Note**: The backend now uses an environment variable instead of hardcoded origin, making it flexible for multiple domains.
 
 ### "Failed to fetch" Errors
 
