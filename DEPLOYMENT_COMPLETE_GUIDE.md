@@ -121,6 +121,9 @@ SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 SUPABASE_ANON_KEY=<GET_CORRECT_ANON_KEY_FROM_SUPABASE>
 SUPABASE_JWT_SECRET=Ba/CKo/SGsWYQvI3QB2MEC5HAhnt6s06oicE9b7c0zqqD1pVZUM3SdHvXq/rFLk8kD5xg89e3n1uTOhXgvqG3Q==
 
+# CORS Configuration
+FRONTEND_URL=https://www.solsignai.com,http://localhost:5173
+
 # Solana - IMPORTANT: Use JSON format for cloud deployment
 PAYER_KEYPAIR_JSON=[1,2,3,...,64]
 SOLANA_RPC_ENDPOINT=https://devnet.helius-rpc.com/?api-key=ef9eec16-5e0c-441a-a05e-194cb1d65c77
