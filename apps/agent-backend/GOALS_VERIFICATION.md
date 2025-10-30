@@ -111,7 +111,7 @@ Decide the next action: ACCEPT, COUNTER-PROPOSE, or ESCALATE.
 `;
 
 const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-  .getGenerativeModel({ model: 'gemini-2.0-flash' });
+  .getGenerativeModel({ model: 'gemini-flash-latest' });
 const result = await model.generateContent(geminiPrompt);
 const aiResponse: { action: string, responseText: string } = JSON.parse(cleaned);
 ```

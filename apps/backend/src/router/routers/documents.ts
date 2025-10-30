@@ -17,7 +17,7 @@ if (!GEMINI_API_KEY) {
   throw new Error("Missing environment variable GEMINI_API_KEY for backend");
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
 // Helper function for adding timeouts to promises
 const withTimeout = <T>(

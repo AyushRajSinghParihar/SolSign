@@ -267,7 +267,7 @@ Respond ONLY with a valid JSON object in the format:
 {"action": "ACTION_TYPE", "responseText": "The text for the next email."}
 `.trim();
 
-      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!).getGenerativeModel({ model: 'gemini-flash-latest' });
       const result = await model.generateContent(geminiPrompt);
       const raw = result.response.text();
       // Remove markdown code blocks (```json ... ``` or ``` ... ```)
