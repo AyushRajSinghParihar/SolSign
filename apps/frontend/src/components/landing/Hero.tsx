@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge'
 
 export function Hero() {
   const { scrollY } = useScroll()
-  const y1 = useTransform(scrollY, [0, 500], [0, 200])
   const y2 = useTransform(scrollY, [0, 500], [0, -150])
 
   return (
