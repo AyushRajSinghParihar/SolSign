@@ -37,17 +37,17 @@ const features = [
 
 export function Features() {
   return (
-    <section id="features" className="py-32 relative overflow-hidden">
+    <section id="features" className="py-20 md:py-32 relative overflow-hidden">
       {/* Background Grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
       
       <div className="container mx-auto px-4 md:px-6 relative z-10">
-        <div className="text-center mb-20 max-w-3xl mx-auto">
+        <div className="text-center mb-12 md:mb-20 max-w-3xl mx-auto">
           <motion.h2 
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-3xl md:text-5xl font-bold mb-6 tracking-tight"
+            className="text-3xl md:text-5xl font-bold mb-4 md:mb-6 tracking-tight"
           >
             Why Choose SolSignAI?
           </motion.h2>
@@ -62,7 +62,7 @@ export function Features() {
           </motion.p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {features.map((feature, index) => (
             <FeatureCard key={index} feature={feature} index={index} />
           ))}
@@ -103,4 +103,3 @@ function FeatureCard({ feature, index }: { feature: any, index: number }) {
     </motion.div>
   )
 }
-

@@ -9,7 +9,7 @@ export function Hero() {
   const y2 = useTransform(scrollY, [0, 500], [0, -150])
 
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 pb-32">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-24 pb-20 md:pt-32 md:pb-32">
       {/* Background Effects */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] dark:bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.15),rgba(255,255,255,0))]" />
@@ -22,7 +22,7 @@ export function Hero() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="flex flex-col items-start text-left space-y-8"
+          className="flex flex-col items-center lg:items-start text-center lg:text-left space-y-6 md:space-y-8"
         >
           <Badge variant="secondary" className="px-4 py-1.5 text-sm font-medium rounded-full border bg-background/50 backdrop-blur-sm">
             <Zap className="h-3.5 w-3.5 mr-1.5 text-yellow-500 fill-yellow-500" />
@@ -31,7 +31,7 @@ export function Hero() {
             </span>
           </Badge>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-extrabold tracking-tight leading-[1.1]">
             Intelligent Contracts.
             <br />
             <span className="relative inline-block">
@@ -47,18 +47,18 @@ export function Hero() {
             </span>
           </h1>
 
-          <p className="text-xl text-muted-foreground max-w-2xl leading-relaxed">
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl leading-relaxed">
             Generate legal documents with AI, negotiate autonomously, and seal agreements with immutable blockchain proof.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 pt-4">
-            <div className="relative group">
+          <div className="flex flex-col sm:flex-row gap-4 pt-4 w-full sm:w-auto justify-center lg:justify-start">
+            <div className="relative group w-full sm:w-auto">
               <div className="absolute -inset-0.5 bg-gradient-to-r from-primary to-purple-600 rounded-lg blur opacity-30 group-hover:opacity-75 transition duration-200" />
-              <div className="relative bg-background rounded-lg">
+              <div className="relative bg-background rounded-lg w-full sm:w-auto flex justify-center">
                  <AuthButton />
               </div>
             </div>
-            <Button variant="outline" size="lg" className="h-11 px-8 text-base group border-primary/20 hover:bg-primary/5">
+            <Button variant="outline" size="lg" className="h-11 px-8 text-base group border-primary/20 hover:bg-primary/5 w-full sm:w-auto">
               Learn More
               <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
@@ -164,4 +164,3 @@ function HologramCard() {
     </motion.div>
   )
 }
-

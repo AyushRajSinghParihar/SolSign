@@ -8,7 +8,7 @@ export function Footer() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] opacity-20" />
       
       <div className="container mx-auto px-4 md:px-6 relative z-10">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-6 md:gap-8">
           <div className="flex items-center gap-2">
             <div className="rounded-lg bg-white/5 p-1.5 border border-white/10">
               <FileText className="h-5 w-5 text-white" />
@@ -16,7 +16,7 @@ export function Footer() {
             <span className="font-bold text-lg text-white">SolSignAI</span>
           </div>
           
-          <div className="flex items-center gap-8 text-sm text-muted-foreground">
+          <div className="flex flex-wrap justify-center gap-6 md:gap-8 text-sm text-muted-foreground">
             <a href="#" className="hover:text-white transition-colors">Privacy</a>
             <a href="#" className="hover:text-white transition-colors">Terms</a>
             <a href="#" className="hover:text-white transition-colors">Twitter</a>
@@ -38,4 +38,3 @@ export function Footer() {
     </footer>
   )
 }
-
