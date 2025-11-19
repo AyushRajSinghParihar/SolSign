@@ -58,7 +58,12 @@ export function Hero() {
                  <AuthButton />
               </div>
             </div>
-            <Button variant="outline" size="lg" className="h-11 px-8 text-base group border-primary/20 hover:bg-primary/5 w-full sm:w-auto">
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="h-11 px-8 text-base group border-primary/20 hover:bg-primary/5 w-full sm:w-auto"
+              onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+            >
               Learn More
               <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
